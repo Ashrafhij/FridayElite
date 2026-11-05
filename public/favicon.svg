@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Friday Elite">
+  <rect width="64" height="64" rx="16" fill="#04100b" />
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#d2ff4d" stroke-width="3" />
+  <path d="M32 19l9 6.5-3.4 10.5h-11.2L23 25.5z" fill="#d2ff4d" />
+  <path d="M32 19v-6M41 25.5l5.7-1.8M37.6 36l3.5 4.8M26.4 36l-3.5 4.8M23 25.5l-5.7-1.8" stroke="#d2ff4d" stroke-width="3" stroke-linecap="round" />
+</svg>

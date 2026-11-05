@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Deep pitch greens */
+  --color-pitch-950: #04100b;
+  --color-pitch-900: #071a12;
+  --color-pitch-850: #0a2117;
+  --color-pitch-800: #0d2a1c;
+  --color-pitch-700: #12402a;
+
+  /* Electric lime accent */
+  --color-brand-200: #efffc2;
+  --color-brand-300: #e0ff8f;
+  --color-brand-400: #d2ff4d;
+  --color-brand-500: #c2f21f;
+  --color-brand-600: #a3cf00;
+
+  /* Warm neutrals for text */
+  --color-sand-100: #f5f3ea;
+  --color-sand-300: #d8d5c7;
+
+  --shadow-glow: 0 0 0 1px rgb(210 255 77 / 0.16), 0 24px 60px -24px rgb(194 242 31 / 0.35);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-pitch-950);
+    color: var(--color-sand-100);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--color-brand-400);
+    color: #05130a;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Ambient stadium lighting */
+  .bg-stadium {
+    background-image:
+      radial-gradient(70% 50% at 50% -12%, rgb(194 242 31 / 0.14), transparent 65%),
+      radial-gradient(45% 35% at 100% 0%, rgb(16 185 129 / 0.1), transparent 70%),
+      radial-gradient(50% 40% at 0% 4%, rgb(56 189 248 / 0.06), transparent 70%);
+  }
+
+  /* Subtle pitch turf stripes */
+  .bg-turf {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0.028) 0px,
+      rgb(255 255 255 / 0.028) 56px,
+      transparent 56px,
+      transparent 112px
+    );
+  }
+
+  .glass {
+    background-color: rgb(255 255 255 / 0.04);
+    backdrop-filter: blur(16px);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Thin, unobtrusive scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(255 255 255 / 0.15);
+  border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
