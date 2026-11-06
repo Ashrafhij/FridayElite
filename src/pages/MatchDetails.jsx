@@ -22,6 +22,7 @@ import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
 import EmptyState from '../components/ui/EmptyState'
 import { useAuth } from '../context/AuthContext'
+import { useMatchRealtime } from '../hooks/useRealtimeMatches'
 import { supabase } from '../lib/supabase'
 import { toArabicError } from '../lib/errorMessages'
 
@@ -175,6 +176,8 @@ export default function MatchDetails() {
   const [generateError, setGenerateError] = useState('')
   const [generateSuccess, setGenerateSuccess] = useState('')
 
+  useMatchRealtime(matchId)
+
   const matchQuery = useQuery({
     queryKey: ['match-details', matchId],
     enabled: Boolean(matchId),
@@ -189,7 +192,7 @@ export default function MatchDetails() {
       return data
     },
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
 
   const registrationsQuery = useQuery({
@@ -205,7 +208,7 @@ export default function MatchDetails() {
       return data ?? []
     },
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
 
   const statsQuery = useQuery({
@@ -224,7 +227,7 @@ export default function MatchDetails() {
       return data ?? null
     },
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
 
   const teamsQuery = useQuery({
@@ -240,7 +243,7 @@ export default function MatchDetails() {
       return data ?? []
     },
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
 
   const assignmentsQuery = useQuery({
@@ -256,7 +259,7 @@ export default function MatchDetails() {
       return data ?? []
     },
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
 
   const positionsQuery = useQuery({

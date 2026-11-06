@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toArabicError } from '../lib/errorMessages'
+import { useScheduleRealtime } from './useRealtimeMatches'
 
 const MATCH_COLUMNS =
   'id,kickoff_at,registration_open_at,registration_close_at,local_date,venue,address,notes,capacity,team_size,status,registration_locked'
@@ -49,6 +50,8 @@ export function useMatches() {
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
 
+  useScheduleRealtime()
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(timer)
@@ -57,8 +60,8 @@ export function useMatches() {
   const scheduleQuery = useQuery({
     queryKey: ['matches', 'schedule'],
     queryFn: fetchSchedule,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   })
 
   const matches = scheduleQuery.data?.matches ?? []
@@ -98,8 +101,8 @@ export function useMatches() {
       if (error) throw error
       return data ?? null
     },
-    staleTime: 15_000,
-    refetchInterval: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   })
 
   const refresh = useCallback(async () => {
