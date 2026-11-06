@@ -183,7 +183,7 @@ export default function Admin() {
             type="button"
             onClick={() => void refetch()}
             disabled={isFetching}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/65 transition-colors hover:border-white/20 hover:text-white disabled:opacity-60"
+            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/65 transition-colors hover:border-white/20 hover:text-white disabled:opacity-60"
           >
             <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} />
             تحديث
@@ -202,7 +202,7 @@ export default function Admin() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         <StatTile icon={Clock3} label="بانتظار الموافقة" value={pendingPlayers.length} />
         <StatTile icon={CheckCircle2} label="موافق عليهم" value={approvedCount} />
         <StatTile icon={Ban} label="موقوفون" value={suspendedCount} />
@@ -294,7 +294,7 @@ export default function Admin() {
                         type="button"
                         onClick={() => handleApprove(player)}
                         disabled={Boolean(busyKey)}
-                        className="inline-flex items-center gap-1.5 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-opacity hover:opacity-90 disabled:opacity-60"
                       >
                         {approving ? (
                           <Loader2 className="size-3.5 animate-spin" />
@@ -308,7 +308,7 @@ export default function Admin() {
                         type="button"
                         onClick={() => openReject(player)}
                         disabled={Boolean(busyKey)}
-                        className="inline-flex items-center gap-1.5 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
                       >
                         {rejecting ? (
                           <Loader2 className="size-3.5 animate-spin" />
@@ -392,7 +392,7 @@ export default function Admin() {
                           type="button"
                           onClick={() => handleSuspend(player)}
                           disabled={Boolean(busyKey)}
-                          className="inline-flex items-center gap-1.5 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
                         >
                           {suspending ? (
                             <Loader2 className="size-3.5 animate-spin" />
@@ -406,7 +406,7 @@ export default function Admin() {
                           type="button"
                           onClick={() => handleApprove(player)}
                           disabled={Boolean(busyKey)}
-                          className="inline-flex items-center gap-1.5 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-opacity hover:opacity-90 disabled:opacity-60"
                         >
                           {approving ? (
                             <Loader2 className="size-3.5 animate-spin" />
@@ -435,7 +435,7 @@ export default function Admin() {
             if (event.target === event.currentTarget) closeReject()
           }}
         >
-          <Card className="w-full max-w-md p-6 shadow-glow">
+          <Card className="max-h-[85dvh] w-full max-w-md overflow-y-auto p-5 shadow-glow sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 id="reject-title" className="text-base font-extrabold text-sand-100">
@@ -448,7 +448,7 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={closeReject}
-                className="rounded-xl p-1.5 text-white/40 transition-colors hover:text-white"
+                className="grid size-11 shrink-0 place-items-center rounded-xl text-white/40 transition-colors hover:text-white"
                 aria-label="إغلاق"
               >
                 <X className="size-4" />
@@ -473,14 +473,14 @@ export default function Admin() {
                 <button
                   type="button"
                   onClick={closeReject}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/60 transition-colors hover:text-white"
+                  className="inline-flex min-h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/60 transition-colors hover:text-white"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={busyKey === `reject:${rejectTarget.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-2xl bg-red-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl bg-red-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
                   {busyKey === `reject:${rejectTarget.id}` ? (
                     <Loader2 className="size-3.5 animate-spin" />

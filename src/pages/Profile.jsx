@@ -381,7 +381,7 @@ export default function Profile() {
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={uploadingAvatar}
-                className="absolute -bottom-1 -end-1 grid size-8 place-items-center rounded-full border-2 border-pitch-950 bg-brand-400 text-pitch-950 shadow-lg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="absolute -bottom-1.5 -end-1.5 grid size-11 place-items-center rounded-full border-2 border-pitch-950 bg-brand-400 text-pitch-950 shadow-lg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="تغيير صورة اللاعب"
                 title="تغيير الصورة"
               >
@@ -407,7 +407,7 @@ export default function Profile() {
                 type="button"
                 onClick={handleRemoveAvatar}
                 disabled={uploadingAvatar}
-                className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-red-300/80 transition-colors hover:text-red-200 disabled:opacity-50"
+                className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-red-300/80 transition-colors hover:text-red-200 disabled:opacity-50"
               >
                 <Trash2 className="size-3" />
                 إزالة الصورة
@@ -459,7 +459,7 @@ export default function Profile() {
                 {selectedPositions.map((code, index) => (
                   <li
                     key={code}
-                    className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2"
+                    className="flex items-center gap-0.5 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2"
                   >
                     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand-400/15 text-[11px] font-black text-brand-300">
                       {index + 1}
@@ -471,27 +471,27 @@ export default function Profile() {
                       type="button"
                       onClick={() => movePosition(index, -1)}
                       disabled={index === 0}
-                      className="rounded-lg p-1 text-white/35 transition-colors hover:text-white disabled:opacity-20"
+                      className="grid size-10 place-items-center rounded-lg text-white/35 transition-colors hover:text-white disabled:opacity-20"
                       aria-label="رفع الأولوية"
                     >
-                      <ChevronUp className="size-3.5" />
+                      <ChevronUp className="size-4" />
                     </button>
                     <button
                       type="button"
                       onClick={() => movePosition(index, 1)}
                       disabled={index === selectedPositions.length - 1}
-                      className="rounded-lg p-1 text-white/35 transition-colors hover:text-white disabled:opacity-20"
+                      className="grid size-10 place-items-center rounded-lg text-white/35 transition-colors hover:text-white disabled:opacity-20"
                       aria-label="خفض الأولوية"
                     >
-                      <ChevronDown className="size-3.5" />
+                      <ChevronDown className="size-4" />
                     </button>
                     <button
                       type="button"
                       onClick={() => removePosition(code)}
-                      className="rounded-lg p-1 text-white/35 transition-colors hover:text-red-300"
+                      className="grid size-10 place-items-center rounded-lg text-white/35 transition-colors hover:text-red-300"
                       aria-label="إزالة المركز"
                     >
-                      <X className="size-3.5" />
+                      <X className="size-4" />
                     </button>
                   </li>
                 ))}
@@ -668,7 +668,7 @@ export default function Profile() {
                               key={position.code}
                               type="button"
                               onClick={() => togglePosition(position.code)}
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold transition-colors ${
+                              className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold transition-colors ${
                                 isSelected
                                   ? 'border-brand-400/40 bg-brand-400/15 text-brand-200'
                                   : 'border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:text-white'

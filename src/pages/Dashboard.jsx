@@ -165,7 +165,7 @@ export default function Dashboard() {
             </p>
             <Link
               to="/profile"
-              className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-300 hover:text-brand-200"
+              className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 hover:text-brand-200"
             >
               مراجعة بياناتي
               <ArrowLeft className="size-3.5" />

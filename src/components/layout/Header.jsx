@@ -26,9 +26,13 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/5 bg-pitch-950/75 backdrop-blur-xl">
+    <header className="safe-top sticky top-0 z-40 border-b border-white/5 bg-pitch-950/90 backdrop-blur-md sm:bg-pitch-950/75 sm:backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="فرايدي إيليت — الرئيسية">
+        <Link
+          to="/"
+          className="flex min-h-11 shrink-0 items-center gap-2.5"
+          aria-label="فرايدي إيليت — الرئيسية"
+        >
           <BrandMark />
           <span className="flex flex-col leading-none">
             <span className="text-[15px] font-extrabold tracking-tight text-sand-100">
@@ -63,7 +67,7 @@ export default function Header() {
           {profile ? (
             <Link
               to={accountHref}
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pe-3 ps-1 transition-colors hover:border-brand-400/40"
+              className="flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pe-3 ps-1 transition-colors hover:border-brand-400/40"
               aria-label="فتح حسابي"
             >
               <span className="relative grid size-8 place-items-center overflow-hidden rounded-full bg-brand-400/15 text-sm font-black text-brand-300">
@@ -91,7 +95,7 @@ export default function Header() {
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="grid size-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/60 transition-colors hover:border-red-400/30 hover:text-red-300 disabled:opacity-60"
+            className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/5 text-white/60 transition-colors hover:border-red-400/30 hover:text-red-300 disabled:opacity-60"
             aria-label="تسجيل الخروج"
             title="تسجيل الخروج"
           >

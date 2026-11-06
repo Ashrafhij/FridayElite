@@ -29,6 +29,8 @@
     color-scheme: dark;
     scroll-behavior: smooth;
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -38,6 +40,13 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Removes the double-tap delay without disabling pinch-to-zoom. */
+  button,
+  a,
+  [role='button'] {
+    touch-action: manipulation;
   }
 
   ::selection {
@@ -79,6 +88,25 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-page {
+    padding-top: calc(1.5rem + env(safe-area-inset-top));
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-nav-space {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
+  @media (min-width: 768px) {
+    .safe-nav-space {
+      padding-bottom: 3.5rem;
+    }
+  }
 }
 
 /* Thin, unobtrusive scrollbar */
@@ -95,6 +123,19 @@
 *::-webkit-scrollbar-thumb {
   background-color: rgb(255 255 255 / 0.15);
   border-radius: 9999px;
+}
+
+/*
+ * iOS Safari zooms the whole page when a focused field is below 16px.
+ * Keeping mobile form fields at 16px avoids that jarring jump. This rule is
+ * intentionally unlayered so it wins over the text-sm utility on inputs.
+ */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -64,7 +64,10 @@ export default function Login() {
       footer={
         <p className="text-sm text-white/45">
           ليس لديك حساب؟{' '}
-          <Link to="/signup" className="font-bold text-brand-300 hover:text-brand-200">
+          <Link
+            to="/signup"
+            className="inline-flex min-h-11 items-center font-bold text-brand-300 hover:text-brand-200"
+          >
             أنشئ حسابًا جديدًا
           </Link>
         </p>
@@ -112,13 +115,13 @@ export default function Login() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
-              className={`${inputClass} ps-11 pe-11 text-left`}
+              className={`${inputClass} ps-12 pe-11 text-left`}
               disabled={submitting}
             />
             <button
               type="button"
               onClick={() => setShowPassword((value) => !value)}
-              className="absolute start-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/40 transition-colors hover:text-white/75"
+              className="absolute start-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-white/40 transition-colors hover:text-white/75"
               aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
               tabIndex={-1}
             >

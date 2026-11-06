@@ -8,9 +8,13 @@ export default function AuthLayout({ title, description, children, footer }) {
     <div className="relative min-h-dvh overflow-hidden bg-pitch-950">
       <div className="bg-stadium pointer-events-none fixed inset-0" aria-hidden="true" />
 
-      <main className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-6 sm:px-6">
+      <main className="safe-page relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 sm:px-6">
         <header className="flex items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-2.5" aria-label="فرايدي إيليت">
+          <Link
+            to="/"
+            className="flex min-h-11 items-center gap-2.5"
+            aria-label="فرايدي إيليت"
+          >
             <BrandMark />
             <span className="flex flex-col leading-none">
               <span className="text-[15px] font-extrabold tracking-tight text-sand-100">
