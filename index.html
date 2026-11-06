@@ -2,6 +2,23 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        window.addEventListener(
+          'error',
+          (event) => {
+            const target = event.target
+            if (!(target instanceof HTMLLinkElement && target.rel === 'stylesheet')) return
+            if (window.sessionStorage.getItem('friday-elite-css-reload') === '1') return
+            window.sessionStorage.setItem('friday-elite-css-reload', '1')
+            const url = new URL(window.location.href)
+            url.searchParams.set('v', String(Date.now()))
+            window.location.replace(url.href)
+          },
+          true,
+        )
+      })()
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

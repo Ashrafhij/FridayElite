@@ -13,15 +13,39 @@ import {
 // Each page is loaded only when its route is visited. This keeps the first
 // screen small on mobile instead of downloading the admin and profile pages
 // before the player can even log in.
-const AccountStatus = lazy(() => import('./pages/AccountStatus'))
-const Admin = lazy(() => import('./pages/Admin'))
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const Login = lazy(() => import('./pages/Login'))
-const MatchDetails = lazy(() => import('./pages/MatchDetails'))
-const Matches = lazy(() => import('./pages/Matches'))
-const NotFound = lazy(() => import('./pages/NotFound'))
-const Profile = lazy(() => import('./pages/Profile'))
-const Signup = lazy(() => import('./pages/Signup'))
+const CHUNK_RELOAD_FLAG = 'friday-elite-chunk-reload'
+
+function reloadOnceAfterCacheBust() {
+  if (window.sessionStorage.getItem(CHUNK_RELOAD_FLAG) === '1') return false
+  window.sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1')
+  const url = new URL(window.location.href)
+  url.searchParams.set('v', String(Date.now()))
+  window.location.replace(url.href)
+  return true
+}
+
+function lazyWithReload(factory) {
+  return lazy(async () => {
+    try {
+      return await factory()
+    } catch (error) {
+      if (reloadOnceAfterCacheBust()) {
+        return { default: () => null }
+      }
+      throw error
+    }
+  })
+}
+
+const AccountStatus = lazyWithReload(() => import('./pages/AccountStatus'))
+const Admin = lazyWithReload(() => import('./pages/Admin'))
+const Dashboard = lazyWithReload(() => import('./pages/Dashboard'))
+const Login = lazyWithReload(() => import('./pages/Login'))
+const MatchDetails = lazyWithReload(() => import('./pages/MatchDetails'))
+const Matches = lazyWithReload(() => import('./pages/Matches'))
+const NotFound = lazyWithReload(() => import('./pages/NotFound'))
+const Profile = lazyWithReload(() => import('./pages/Profile'))
+const Signup = lazyWithReload(() => import('./pages/Signup'))
 
 function LazyPage({ children, full = false }) {
   return <Suspense fallback={<AuthLoading compact={!full} />}>{children}</Suspense>
