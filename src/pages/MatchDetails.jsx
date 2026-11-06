@@ -191,6 +191,45 @@ function AssignmentRow({ assignment, directoryById, positionByCode }) {
   )
 }
 
+function PitchPlayerButton({ player, subLabel, averageRating, myRating, selected, onSelect }) {
+  const initial = player?.full_name?.trim()?.charAt(0) || '؟'
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-1.5">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={player?.full_name ? `فتح تقييم ${player.full_name}` : 'فتح تقييم اللاعب'}
+        className={`relative grid size-12 place-items-center overflow-hidden rounded-full border transition-all ${selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'}`}
+      >
+        {initial}
+        {player?.avatar_url ? (
+          <img
+            src={player.avatar_url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 size-full object-cover"
+            onError={(event) => {
+              event.currentTarget.style.display = 'none'
+            }}
+          />
+        ) : null}
+        {averageRating ? (
+          <span className="absolute -end-0.5 -top-0.5 grid min-w-6 place-items-center rounded-full border border-pitch-950 bg-brand-400 px-1 py-0.5 text-[9px] leading-none font-black text-pitch-950">
+            {averageRating}
+          </span>
+        ) : null}
+      </button>
+      <span className="max-w-24 truncate text-center text-[10px] leading-4 font-bold text-sand-100">
+        {player?.full_name ?? 'لاعب'}
+      </span>
+      <span className="max-w-24 truncate text-center text-[9px] leading-4 text-white/45">
+        {subLabel || (myRating ? `قيّمتك ${myRating}` : 'اضغط للتقييم')}
+      </span>
+    </div>
+  )
+}
+
 export default function MatchDetails() {
   const { matchId } = useParams()
   const { isAdmin, profile } = useAuth()
@@ -209,6 +248,7 @@ export default function MatchDetails() {
   const [ratingBusyPlayerId, setRatingBusyPlayerId] = useState(null)
   const [ratingError, setRatingError] = useState('')
   const [ratingSuccess, setRatingSuccess] = useState('')
+  const [ratingTarget, setRatingTarget] = useState(null)
   const [cancelRegistrationId, setCancelRegistrationId] = useState(null)
   const [registrationError, setRegistrationError] = useState('')
   const [registrationSuccess, setRegistrationSuccess] = useState('')
@@ -479,11 +519,11 @@ export default function MatchDetails() {
   }
 
   async function handleCancelRegistration(registration) {
-    if (!match || !registration) return
+    if (!match || !registration) return false
     const player = directoryById.get(registration.player_id)
     const playerName = player?.full_name ?? 'هذا اللاعب'
     const wasConfirmed = registration.status === 'confirmed'
-    if (!window.confirm(`سيتم حذف ${playerName} من قائمة المؤكدين.${wasConfirmed ? ' سيتم ترقية أول لاعب مناسب من قائمة الانتظار.' : ''} متابعة؟`)) return
+    if (!window.confirm(`سيتم حذف ${playerName} من قائمة المؤكدين.${wasConfirmed ? ' سيتم ترقية أول لاعب مناسب من قائمة الانتظار.' : ''} متابعة؟`)) return false
 
     setCancelRegistrationId(registration.id)
     setRegistrationError('')
@@ -496,7 +536,7 @@ export default function MatchDetails() {
 
     if (error) {
       setRegistrationError(toArabicError(error, 'تعذر حذف اللاعب من التسجيل.'))
-      return
+      return false
     }
 
     setRegistrationSuccess('تم حذف اللاعب من التسجيل.')
@@ -508,6 +548,7 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
     ])
+    return true
   }
 
   function openResultForm() {
@@ -922,51 +963,150 @@ export default function MatchDetails() {
         ) : null}
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-              <UserCheck className="size-5 text-brand-300" />
-              اللاعبون المؤكدون
+      <section className="mt-8" aria-label="الميدان">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
+              <Users className="size-5 text-brand-300" />
+              الميدان
             </h2>
-            <span className="text-xs font-bold text-white/35">{confirmedCount}/{match.capacity}</span>
+            <p className="mt-1 text-sm text-white/45">
+              اضغط على أي لاعب لعرض متوسطه وتقييمه من 1 إلى 10.
+            </p>
           </div>
-
-          {registrationsQuery.isLoading ? (
-            <Card className="flex items-center gap-3 p-5 text-sm text-white/45"><Loader2 className="size-4 animate-spin text-brand-300" /> جارٍ تحميل اللاعبين…</Card>
-          ) : registrationsQuery.error ? (
-            <Card className="p-5 text-sm text-red-300">{toArabicError(registrationsQuery.error)}</Card>
-          ) : confirmedPlayers.length ? (
-            <>
-              {registrationError ? <p role="alert" className="mb-3 rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200">{registrationError}</p> : null}
-              {registrationSuccess ? <p role="status" className="mb-3 rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200">{registrationSuccess}</p> : null}
-              <div className="space-y-2.5">
-                {confirmedPlayers.map((registration) => (
-                  <RegistrationPlayerRow
-                    key={registration.id}
-                    registration={registration}
-                    directoryById={directoryById}
-                    positionByCode={positionByCode}
-                    showDelete={isAdmin}
-                    deleting={cancelRegistrationId === registration.id}
-                    onDelete={(target) => void handleCancelRegistration(target)}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <EmptyState icon={UserCheck} title="لا يوجد لاعبون مؤكدون بعد" description="ستظهر هنا أسماء اللاعبين فور اكتمال تسجيلهم." />
-          )}
+          <Badge variant={canRate ? 'brand' : 'neutral'}>
+            {canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}
+          </Badge>
         </div>
 
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-              <History className="size-5 text-amber-300" />
-              قائمة الانتظار
-            </h2>
-            <span className="text-xs font-bold text-white/35">{waitlistedCount} لاعب</span>
+        <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-pitch-900/80 p-4 sm:p-6">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0,rgba(255,255,255,0)_50%,rgba(255,255,255,0.035)_100%)]" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-3 rounded-[1.5rem] border border-white/20" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-x-3 top-1/2 h-px bg-white/25" aria-hidden="true" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25" aria-hidden="true" />
+          <div className="pointer-events-none absolute left-1/2 top-3 h-14 w-40 -translate-x-1/2 border border-white/20 border-t-0" aria-hidden="true" />
+          <div className="pointer-events-none absolute bottom-3 left-1/2 h-14 w-40 -translate-x-1/2 border border-white/20 border-b-0" aria-hidden="true" />
+
+          <div className="relative z-10">
+            {registrationsQuery.isLoading ? (
+              <Card className="flex items-center gap-3 p-5 text-sm text-white/45"><Loader2 className="size-4 animate-spin text-brand-300" /> جارٍ تحميل اللاعبين…</Card>
+            ) : registrationsQuery.error ? (
+              <Card className="p-5 text-sm text-red-300">{toArabicError(registrationsQuery.error)}</Card>
+            ) : teams.length === 0 ? (
+              confirmedPlayers.length ? (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-xs font-extrabold text-brand-200">قبل توزيع الفرق</p>
+                    <p className="mt-1 text-[11px] text-white/45">{confirmedCount} لاعب مؤكد على الميدان</p>
+                  </div>
+                  {[
+                    { label: 'حراسة المرمى', registrations: confirmedPlayers.filter((registration) => registration.roster_role === 'gk') },
+                    { label: 'الدفاع', registrations: confirmedPlayers.filter((registration) => registration.roster_role !== 'gk').slice(0, 6) },
+                    { label: 'الوسط', registrations: confirmedPlayers.filter((registration) => registration.roster_role !== 'gk').slice(6, 12) },
+                    { label: 'الهجوم', registrations: confirmedPlayers.filter((registration) => registration.roster_role !== 'gk').slice(12, 16) },
+                  ].map((group) => (
+                    <div key={group.label} className="rounded-2xl bg-pitch-950/25 p-3">
+                      <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">{group.label}</p>
+                      <div className="flex flex-wrap justify-center gap-x-4 gap-y-4 sm:gap-x-6">
+                        {group.registrations.map((registration) => {
+                          const player = directoryById.get(registration.player_id)
+                          const stat = ratingStatsByPlayer.get(registration.player_id)
+                          return (
+                            <PitchPlayerButton
+                              key={registration.id}
+                              player={player}
+                              averageRating={stat?.average_rating}
+                              myRating={myRatingsByPlayer.get(registration.player_id) ?? 0}
+                              subLabel={roleLabel(registration.roster_role)}
+                              selected={ratingTarget?.playerId === registration.player_id}
+                              onSelect={() =>
+                                setRatingTarget({
+                                  playerId: registration.player_id,
+                                  player,
+                                  average: stat,
+                                  myRating: myRatingsByPlayer.get(registration.player_id) ?? 0,
+                                  positionLabel: roleLabel(registration.roster_role),
+                                })
+                              }
+                            />
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={UserCheck} title="لا يوجد لاعبون مؤكدون بعد" description="ستظهر هنا أسماء اللاعبين فور اكتمال تسجيلهم." />
+              )
+            ) : (
+              <div className="space-y-5">
+                {teams.map((team) => {
+                  const teamAssignments = assignments.filter((assignment) => assignment.team_id === team.id)
+                  const groups = { gk: [], defense: [], midfield: [], attack: [] }
+                  for (const assignment of teamAssignments) {
+                    const position = positionByCode.get(assignment.assigned_position_code)
+                    const category = position?.category ?? (assignment.assigned_position_code === 'GK' ? 'gk' : 'midfield')
+                    groups[category]?.push(assignment)
+                  }
+                  const rows = team.side === 'A'
+                    ? [groups.gk, groups.defense, groups.midfield, groups.attack]
+                    : [groups.attack, groups.midfield, groups.defense, groups.gk]
+                  return (
+                    <div key={team.id} className="rounded-2xl bg-pitch-950/25 p-3">
+                      <div className="mb-3 flex items-center justify-center gap-2">
+                        <span className="size-3 rounded-full" style={{ backgroundColor: team.color ?? '#d2ff4d' }} aria-hidden="true" />
+                        <p className="text-xs font-extrabold text-sand-100">{team.name_ar}</p>
+                        <span className="text-[10px] font-bold text-white/40">{teamAssignments.length}/9</span>
+                      </div>
+                      <div className="space-y-3">
+                        {rows.map((row, rowIndex) => (
+                          row.length ? (
+                            <div key={`${team.id}-${rowIndex}`} className="flex flex-wrap items-start justify-center gap-x-4 gap-y-4 sm:gap-x-6">
+                              {row.map((assignment) => {
+                                const player = directoryById.get(assignment.player_id)
+                                const position = positionByCode.get(assignment.assigned_position_code)
+                                const stat = ratingStatsByPlayer.get(assignment.player_id)
+                                return (
+                                  <PitchPlayerButton
+                                    key={assignment.id}
+                                    player={player}
+                                    averageRating={stat?.average_rating}
+                                    myRating={myRatingsByPlayer.get(assignment.player_id) ?? 0}
+                                    subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
+                                    selected={ratingTarget?.playerId === assignment.player_id}
+                                    onSelect={() =>
+                                      setRatingTarget({
+                                        playerId: assignment.player_id,
+                                        player,
+                                        average: stat,
+                                        myRating: myRatingsByPlayer.get(assignment.player_id) ?? 0,
+                                        positionLabel: position?.name_ar ?? assignment.assigned_position_code,
+                                      })
+                                    }
+                                  />
+                                )
+                              })}
+                            </div>
+                          ) : null
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
+        </div>
+      </section>
+
+      <section className="mt-8" aria-label="قائمة الانتظار">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+            <History className="size-5 text-amber-300" />
+            قائمة الانتظار
+          </h2>
+          <span className="text-xs font-bold text-white/35">{waitlistedCount} لاعب</span>
+        </div>
 
           {waitlistedPlayers.length ? (
             <div className="space-y-2.5">
@@ -977,124 +1117,100 @@ export default function MatchDetails() {
           ) : (
             <EmptyState icon={History} title="لا يوجد لاعبون في الانتظار" description="عند اكتمال السعة، سينتقل التسجيل الجديد إلى هنا حسب الترتيب." />
           )}
-        </div>
       </section>
 
-      <section className="mt-8" aria-label="تقييمات اللاعبين">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
-              <Star className="size-5 text-brand-300" />
-              تقييمات اللاعبين
-            </h2>
-            <p className="mt-1 text-sm text-white/45">
-              بعد اكتمال المباراة، قيّم كل لاعب آخر من 1 إلى 10. لا يمكنك تقييم نفسك.
-            </p>
+      {ratingTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-pitch-950/80 p-4 backdrop-blur-sm sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rating-player-title"
+          onClick={() => setRatingTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-[2rem] border border-white/10 bg-pitch-900/95 p-5 shadow-glow sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Avatar player={ratingTarget.player} size={48} />
+                <div>
+                  <h2 id="rating-player-title" className="text-base font-extrabold text-sand-100">
+                    {ratingTarget.player?.full_name ?? 'لاعب'}
+                  </h2>
+                  <p className="mt-1 text-xs text-white/50">
+                    {ratingTarget.average
+                      ? `متوسط ${ratingTarget.average.average_rating} من 10 · ${ratingTarget.average.rating_count} تقييم`
+                      : `لا توجد تقييمات بعد · ${ratingTarget.positionLabel ?? ''}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRatingTarget(null)}
+                className="grid size-11 shrink-0 place-items-center rounded-xl text-white/45 transition-colors hover:text-white"
+                aria-label="إغلاق التقييم"
+              >
+                <XCircle className="size-5" />
+              </button>
+            </div>
+
+            {ratingTarget.playerId === profile?.id ? (
+              <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-6 text-white/60">
+                لا يمكنك تقييم نفسك. اضغط على لاعب آخر للتقييم.
+              </p>
+            ) : (
+              <>
+                {ratingTarget.myRating ? (
+                  <p className="mt-5 text-xs font-bold text-brand-200">تقييمك الحالي: {ratingTarget.myRating}/10</p>
+                ) : null}
+                <div className="mt-4 grid grid-cols-5 gap-2" aria-label={`اختيار تقييم ${ratingTarget.player?.full_name ?? 'لاعب'}`}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => {
+                    const active = value <= ratingTarget.myRating
+                    const busy = ratingBusyPlayerId === ratingTarget.playerId
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => void handleRatePlayer(ratingTarget.playerId, value)}
+                        disabled={busy || !canRate}
+                        aria-label={`تقييم ${value} من 10`}
+                        className={`grid min-h-11 place-items-center rounded-xl border text-sm font-black transition-colors disabled:opacity-60 ${active ? 'border-brand-400/40 bg-brand-400/15 text-brand-300' : 'border-white/10 bg-white/[0.03] text-white/40 hover:text-brand-200'}`}
+                      >
+                        {value}
+                      </button>
+                    )
+                  })}
+                </div>
+                {!canRate ? (
+                  <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-6 text-white/55">
+                    {match.status !== 'completed'
+                      ? 'التقييم يبدأ بعد نهاية المباراة.'
+                      : 'التقييم للمشاركين المؤكدين فقط.'}
+                  </p>
+                ) : null}
+              </>
+            )}
+
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  const registration = registrations.find((item) => item.player_id === ratingTarget.playerId)
+                  if (!registration) return
+                  const removed = await handleCancelRegistration(registration)
+                  if (removed) setRatingTarget(null)
+                }}
+                disabled={cancelRegistrationId === registrations.find((item) => item.player_id === ratingTarget.playerId)?.id}
+                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-extrabold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+              >
+                {cancelRegistrationId ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                حذف من التسجيل
+              </button>
+            ) : null}
           </div>
-          <Badge variant={canRate ? 'brand' : 'neutral'}>{canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}</Badge>
         </div>
-
-        {ratingError ? <p role="alert" className="mb-4 rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200">{ratingError}</p> : null}
-        {ratingSuccess ? <p role="status" className="mb-4 rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200">{ratingSuccess}</p> : null}
-
-        {match.status !== 'completed' ? (
-          <EmptyState icon={Star} title="التقييم يبدأ بعد نهاية المباراة" description="عند اكتمال المباراة، ستظهر هنا إمكانية تقييم اللاعبين الآخرين." />
-        ) : !currentUserRegistration ? (
-          <EmptyState icon={Star} title="التقييم للمشاركين فقط" description="فقط اللاعبون المؤكدون في هذه المباراة يمكنهم التقييم." />
-        ) : confirmedPlayers.length > 1 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {confirmedPlayers
-              .filter((registration) => registration.player_id !== profile?.id)
-              .map((registration) => {
-                const player = directoryById.get(registration.player_id)
-                const stat = ratingStatsByPlayer.get(registration.player_id)
-                const myRating = myRatingsByPlayer.get(registration.player_id) ?? 0
-                return (
-                  <Card key={registration.id} className="p-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar player={player} size={42} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-extrabold text-sand-100">{player?.full_name ?? 'لاعب'}</p>
-                        <p className="mt-0.5 text-[11px] text-white/45">
-                          {stat ? `متوسط ${stat.average_rating} من 10 · ${stat.rating_count} تقييم` : 'لا توجد تقييمات بعد'}
-                        </p>
-                      </div>
-                      {myRating ? <Badge variant="brand">قيّمتك: {myRating}</Badge> : null}
-                    </div>
-                    <div className="mt-4 grid grid-cols-5 gap-1.5 sm:grid-cols-10" aria-label={`تقييم ${player?.full_name ?? 'لاعب'}`}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => {
-                        const active = value <= myRating
-                        const busy = ratingBusyPlayerId === registration.player_id
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => void handleRatePlayer(registration.player_id, value)}
-                            disabled={busy || !canRate}
-                            aria-label={`تقييم ${value} من 10`}
-                            className={`grid min-h-11 min-w-9 place-items-center rounded-xl border text-sm font-black transition-colors disabled:opacity-60 ${active ? 'border-brand-400/40 bg-brand-400/15 text-brand-300' : 'border-white/10 bg-white/[0.03] text-white/40 hover:text-brand-200'}`}
-                          >
-                            {value}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </Card>
-                )
-              })}
-          </div>
-        ) : (
-          <EmptyState icon={Star} title="لا يوجد لاعبون آخرون للتقييم" description="يلزم مشاركة لاعب آخر على الأقل في هذه المباراة." />
-        )}
-      </section>
-
-      <section className="mt-8" aria-label="فرق المباراة">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
-              <Users className="size-5 text-brand-300" />
-              تشكيلة الفريقين
-            </h2>
-            <p className="mt-1 text-sm text-white/45">فريقان × 9 لاعبين بتشكيلة {match.formation}</p>
-          </div>
-          {match.teams_stale ? (
-            <Badge variant="warning">
-              <RotateCcw className="size-3.5" />
-              يحتاج إعادة توزيع
-            </Badge>
-          ) : null}
-        </div>
-
-        {teams.length === 0 ? (
-          <EmptyState
-            icon={Shuffle}
-            title="لم تُوزَّع الفرق بعد"
-            description={canGenerateTeams ? 'يمكن للإدارة الضغط على زر توليد التوزيع لتشكيل الفريقين.' : 'يتم إنشاء الفرق بعد اكتمال 18 لاعبًا مؤكدًا بنفس التركيبة المطلوبة.'}
-          />
-        ) : (
-          <div className="grid gap-5 lg:grid-cols-2">
-            {teams.map((team) => {
-              const teamAssignments = assignments.filter((assignment) => assignment.team_id === team.id)
-              return (
-                <Card key={team.id} className="p-5">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="size-3.5 rounded-full" style={{ backgroundColor: team.color ?? '#d2ff4d', boxShadow: '0 0 18px 0 currentColor' }} aria-hidden="true" />
-                      <h3 className="text-base font-extrabold text-sand-100">{team.name_ar}</h3>
-                    </div>
-                    <Badge variant="neutral">{teamAssignments.length}/9</Badge>
-                  </div>
-                  <div className="space-y-2.5">
-                    {teamAssignments.map((assignment) => (
-                      <AssignmentRow key={assignment.id} assignment={assignment} directoryById={directoryById} positionByCode={positionByCode} />
-                    ))}
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        )}
-      </section>
+      ) : null}
 
     </div>
   )
