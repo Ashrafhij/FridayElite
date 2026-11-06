@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import ApprovalToast from './ApprovalToast'
 import Header from './Header'
 import BottomNav from './BottomNav'
 
@@ -10,6 +11,7 @@ export default function AppShell() {
       <main className="safe-nav-space mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:pt-10">
         <Outlet />
       </main>
+      <ApprovalToast />
       <BottomNav />
     </div>
   )

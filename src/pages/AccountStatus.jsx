@@ -49,8 +49,8 @@ const STATUS_CONFIG = {
     label: 'موافق عليه',
     badge: 'brand',
     icon: CheckCircle2,
-    title: 'الحساب موافق عليه',
-    description: 'يمكنك الآن الوصول إلى المباريات والتسجيل في المواعيد المتاحة.',
+    title: 'تم قبول حسابك',
+    description: 'قبلت الإدارة حسابك وتم تفعيله بنجاح. يمكنك الآن الوصول إلى المباريات والتسجيل في المواعيد المتاحة.',
     tone: 'text-brand-300 border-brand-400/20 bg-brand-400/10',
   },
 }
@@ -91,6 +91,18 @@ export default function AccountStatus() {
           <h2 className="mt-5 text-xl font-extrabold text-sand-100">{config.title}</h2>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-white/55">{config.description}</p>
 
+          {profile.status === 'approved' ? (
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-brand-400/25 bg-brand-400/[0.07] px-4 py-4">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-brand-300" />
+              <div>
+                <p className="text-sm font-extrabold text-brand-200">تم قبول حسابك وتم تفعيله بنجاح.</p>
+                <p className="mt-1 text-[12px] leading-6 text-white/50">
+                  يمكنك الآن التسجيل في المباريات وفتح الملف واختيار مراكزك المفضلة.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           {profile.rejection_reason ? (
             <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-red-300/80">
@@ -116,7 +128,8 @@ export default function AccountStatus() {
           {profile.status === 'pending' ? (
             <p className="mt-4 text-[12px] leading-6 text-white/45">
               يمكنك تعديل ملفك ومراكزك المفضلة الآن، لكن لا يمكنك الوصول إلى المباريات أو
-              التسجيلات أو الفرق أو دليل اللاعبين حتى تتم الموافقة.
+              التسجيلات أو الفرق أو دليل اللاعبين حتى تتم الموافقة. عند الموافقة، سيظهر لك إشعار
+              داخل التطبيق ويتحول حسابك إلى مفعّل تلقائيًا.
             </p>
           ) : null}
 
