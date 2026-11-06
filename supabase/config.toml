@@ -1,0 +1,15 @@
+# Supabase CLI configuration
+# Docs: https://supabase.com/docs/guides/local-development/cli/config
+
+project_id = "fridayelite"
+
+# These endpoints are the public login/register entry points themselves, so
+# there is no user JWT to verify. Input validation, rate limiting and the
+# service-role lookup happen inside each function.
+[functions.registerPhone]
+enabled = true
+verify_jwt = false
+
+[functions.loginPhone]
+enabled = true
+verify_jwt = false

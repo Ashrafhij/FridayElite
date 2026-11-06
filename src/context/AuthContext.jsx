@@ -169,21 +169,6 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-// -------------------------------------------------
-// Helper: quick login with phone + password
-// -------------------------------------------------
-export const loginWithPhone = async (phone, password) => {
-  const { data, error } = await supabase.functions.invoke('loginPhone', {
-    body: { phone, password },
-  })
-  if (error) throw error
-  if (!data || !data.success) throw new Error('Login failed')
-  await supabase.auth.setSession({
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-  })
-}
-
 export function useAuth() {
   const context = useContext(AuthContext)
 

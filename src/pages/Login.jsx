@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, LogIn, Phone } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole, LogIn, Phone } from 'lucide-react'
 import AuthLayout from '../components/auth/AuthLayout'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { establishSession, loginPhone } from '../lib/phoneAuth'
 import { formatPhoneForDisplay, normalizePhone, validatePhone } from '../lib/phone'
 import { toArabicError } from '../lib/errorMessages'
 
@@ -21,6 +21,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   const normalizedPhone = normalizePhone(phone)
+  const notice = location.state?.notice
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -40,17 +41,10 @@ export default function Login() {
     setSubmitting(true)
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('loginPhone', {
-        body: { phone, password },
-      })
-      if (invokeError) throw invokeError
-      if (!data || !data.success) throw new Error('Login failed')
+      const data = await loginPhone({ phone, password })
+      const hasSession = await establishSession(data)
 
-      // Establish session from the edge function response
-      await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      })
+      if (!hasSession) throw new Error('SERVER_ERROR')
 
       await syncSession()
 
@@ -132,6 +126,16 @@ export default function Login() {
             </button>
           </div>
         </div>
+
+        {notice && !error ? (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200"
+          >
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            <span>{notice}</span>
+          </div>
+        ) : null}
 
         {error ? (
           <div

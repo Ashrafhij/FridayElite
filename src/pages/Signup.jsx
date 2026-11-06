@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import AuthLayout from '../components/auth/AuthLayout'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { establishSession, registerPhone } from '../lib/phoneAuth'
 import { formatPhoneForDisplay, normalizePhone, validatePhone } from '../lib/phone'
 import { toArabicError } from '../lib/errorMessages'
 
@@ -62,15 +62,19 @@ export default function Signup() {
     setSubmitting(true)
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('registerPhone', {
-        body: { phone, password, fullName: name },
-      })
-      if (invokeError) throw invokeError
-      if (!data || !data.success) throw new Error('Registration failed')
+      const data = await registerPhone({ phone, password, fullName: name })
+      const hasSession = await establishSession(data)
 
-      // The edge function created the user; refresh session and go to account status
       await syncSession()
-      navigate('/account-status', { replace: true })
+
+      if (hasSession) {
+        navigate('/account-status', { replace: true })
+      } else {
+        navigate('/login', {
+          replace: true,
+          state: { notice: 'تم إنشاء حسابك بنجاح. سجّل الدخول للمتابعة.' },
+        })
+      }
     } catch (signUpError) {
       setError(toArabicError(signUpError))
     } finally {
