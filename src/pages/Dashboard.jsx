@@ -16,6 +16,7 @@ import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
 import StatTile from '../components/ui/StatTile'
 import { useAuth } from '../context/AuthContext'
+import { useMatches } from '../hooks/useMatches'
 import { useRegistrationWindow } from '../hooks/useRegistrationWindow'
 import { formatRegistrationDateTime } from '../lib/registrationWindow'
 
@@ -41,6 +42,19 @@ export default function Dashboard() {
   const { profile, isAdmin } = useAuth()
   const registrationWindow = useRegistrationWindow()
   const registrationOpen = registrationWindow.isOpen
+  const { activeMatch, statsByMatchId } = useMatches()
+  const activeStats = activeMatch ? statsByMatchId.get(activeMatch.id) : undefined
+  const availableSeats = activeMatch
+    ? Math.max(0, (activeMatch.capacity ?? 18) - (activeStats?.confirmed_count ?? 0))
+    : undefined
+  const activeMatchDate = activeMatch?.local_date
+    ? new Intl.DateTimeFormat('ar', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        timeZone: 'Asia/Jerusalem',
+      }).format(new Date(`${activeMatch.local_date}T12:00:00Z`))
+    : 'الجمعة · ٦ نوفمبر'
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -78,11 +92,11 @@ export default function Dashboard() {
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/60">
             <span className="inline-flex items-center gap-2">
               <CalendarDays className="size-4 text-brand-400/80" />
-              الجمعة · ٦ نوفمبر
+              {activeMatchDate}
             </span>
             <span className="inline-flex items-center gap-2">
               <MapPin className="size-4 text-brand-400/80" />
-              ملعب الحي — العشب الصناعي
+              {activeMatch?.venue ?? 'ملعب الحي — العشب الصناعي'}
             </span>
           </div>
 
@@ -126,9 +140,9 @@ export default function Dashboard() {
       {/* Live numbers */}
       <section aria-label="أرقام المباراة">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatTile icon={Users} label="المقاعد المتاحة" value="١٨" hint="لكل مباراة أسبوعية" />
-          <StatTile icon={UserCheck} label="اللاعبون المؤكدون" value="—" hint="تُحدَّث بعد ربط قاعدة البيانات" />
-          <StatTile icon={ListOrdered} label="قائمة الانتظار" value="—" hint="تُحدَّث بعد ربط قاعدة البيانات" />
+          <StatTile icon={Users} label="المقاعد المتاحة" value={availableSeats ?? '١٨'} hint={activeMatch ? formatRegistrationDateTime(activeMatch.kickoff_at) : 'لكل مباراة أسبوعية'} />
+          <StatTile icon={UserCheck} label="اللاعبون المؤكدون" value={activeStats?.confirmed_count ?? '—'} hint={activeStats ? `من أصل ${activeMatch?.capacity ?? 18}` : 'تُحدَّث بعد ربط قاعدة البيانات'} />
+          <StatTile icon={ListOrdered} label="قائمة الانتظار" value={activeStats?.waitlisted_count ?? '—'} hint={activeStats ? 'بحسب ترتيب التسجيل' : 'تُحدَّث بعد ربط قاعدة البيانات'} />
         </div>
       </section>
 
