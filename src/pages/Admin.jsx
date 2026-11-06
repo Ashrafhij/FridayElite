@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
   Ban,
+  CalendarDays,
   CheckCircle2,
   Clock3,
   Loader2,
   Phone,
+  Plus,
   RefreshCw,
   ShieldCheck,
   UserCheck,
@@ -48,6 +50,23 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('ar', { dateStyle: 'medium' }).format(new Date(value))
 }
 
+function pad(value) {
+  return String(value).padStart(2, '0')
+}
+
+function toLocalInputValue(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function defaultRegistrationOpen(kickoffValue) {
+  if (!kickoffValue) return ''
+  const kickoff = new Date(kickoffValue)
+  if (Number.isNaN(kickoff.getTime())) return ''
+  kickoff.setDate(kickoff.getDate() - 1)
+  kickoff.setHours(10, 0, 0, 0)
+  return toLocalInputValue(kickoff)
+}
+
 export default function Admin() {
   const [busyKey, setBusyKey] = useState('')
   const [actionError, setActionError] = useState('')
@@ -58,9 +77,12 @@ export default function Admin() {
   const [matchError, setMatchError] = useState('')
   const [matchSuccess, setMatchSuccess] = useState('')
   const [kickoffAt, setKickoffAt] = useState('')
+  const [registrationOpenAt, setRegistrationOpenAt] = useState('')
+  const [registrationCloseAt, setRegistrationCloseAt] = useState('')
   const [venue, setVenue] = useState('')
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
+  const queryClient = useQueryClient()
 
   const {
     data: profiles = [],
@@ -164,6 +186,68 @@ export default function Admin() {
     setRejectReason('')
   }
 
+  function handleKickoffChange(event) {
+    const value = event.target.value
+    setKickoffAt(value)
+    if (!registrationOpenAt) {
+      setRegistrationOpenAt(defaultRegistrationOpen(value))
+    }
+  }
+
+  async function handleCreateMatch(event) {
+    event.preventDefault()
+    setMatchError('')
+    setMatchSuccess('')
+
+    const kickoff = kickoffAt ? new Date(kickoffAt) : null
+    const open = registrationOpenAt ? new Date(registrationOpenAt) : null
+    const close = registrationCloseAt ? new Date(registrationCloseAt) : null
+
+    if (!kickoff || Number.isNaN(kickoff.getTime()) || !venue.trim()) {
+      setMatchError('أدخل تاريخ ووقت المباراة واسم الملعب.')
+      return
+    }
+    if ((open && Number.isNaN(open.getTime())) || (close && Number.isNaN(close.getTime()))) {
+      setMatchError('أدخل أوقات فتح وإغلاق التسجيل بشكل صحيح.')
+      return
+    }
+    if (open && close && open >= close) {
+      setMatchError('وقت فتح التسجيل يجب أن يكون قبل وقت الإغلاق.')
+      return
+    }
+    if (close && close > kickoff) {
+      setMatchError('وقت إغلاق التسجيل يجب أن يكون قبل انطلاق المباراة أو مساوٍ له.')
+      return
+    }
+
+    setCreatingMatch(true)
+    try {
+      const { error: rpcError } = await supabase.rpc('create_match', {
+        p_kickoff_at: kickoff.toISOString(),
+        p_venue: venue.trim(),
+        p_address: address.trim() || null,
+        p_notes: notes.trim() || null,
+        p_registration_open_at: open?.toISOString() ?? null,
+        p_registration_close_at: close?.toISOString() ?? null,
+      })
+
+      if (rpcError) throw rpcError
+
+      setKickoffAt('')
+      setRegistrationOpenAt('')
+      setRegistrationCloseAt('')
+      setVenue('')
+      setAddress('')
+      setNotes('')
+      setMatchSuccess('تم إنشاء المباراة. ستظهر الآن في صفحة المباريات حسب جدولها.')
+      await queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] })
+    } catch (createError) {
+      setMatchError(toArabicError(createError, 'تعذر إنشاء المباراة. تحقق من التاريخ والأوقات وحاول مرة أخرى.'))
+    } finally {
+      setCreatingMatch(false)
+    }
+  }
+
   async function handleRejectSubmit(event) {
     event.preventDefault()
     if (!rejectTarget) return
@@ -208,6 +292,136 @@ export default function Admin() {
         <StatTile icon={Ban} label="موقوفون" value={suspendedCount} />
         <StatTile icon={XCircle} label="مرفوضون" value={rejectedCount} />
       </div>
+
+      <section className="mt-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+              <CalendarDays className="size-5 text-brand-300" />
+              إنشاء مباراة جديدة
+            </h2>
+            <p className="mt-1 text-xs leading-6 text-white/45">
+              يمكنك اختيار أي يوم ووقت للمباراة. إذا تركت أوقات التسجيل فارغة، ينفتح التسجيل اليوم السابق ١٠:٠٠ ويغلق عند الانطلاق.
+            </p>
+          </div>
+          <span className="text-xs font-bold text-white/35">مباراة يدوية</span>
+        </div>
+
+        <Card className="p-5 sm:p-6">
+          <form onSubmit={handleCreateMatch} className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label htmlFor="match-kickoff" className="text-xs font-bold text-white/55">
+                يوم ووقت المباراة
+              </label>
+              <input
+                id="match-kickoff"
+                type="datetime-local"
+                value={kickoffAt}
+                onChange={handleKickoffChange}
+                required
+                disabled={creatingMatch}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="match-venue" className="text-xs font-bold text-white/55">
+                الملعب
+              </label>
+              <input
+                id="match-venue"
+                type="text"
+                value={venue}
+                onChange={(event) => setVenue(event.target.value)}
+                required
+                disabled={creatingMatch}
+                placeholder="اسم الملعب"
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="match-open" className="text-xs font-bold text-white/55">
+                فتح التسجيل (اختياري)
+              </label>
+              <input
+                id="match-open"
+                type="datetime-local"
+                value={registrationOpenAt}
+                onChange={(event) => setRegistrationOpenAt(event.target.value)}
+                disabled={creatingMatch}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="match-close" className="text-xs font-bold text-white/55">
+                إغلاق التسجيل (اختياري)
+              </label>
+              <input
+                id="match-close"
+                type="datetime-local"
+                value={registrationCloseAt}
+                onChange={(event) => setRegistrationCloseAt(event.target.value)}
+                disabled={creatingMatch}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="match-address" className="text-xs font-bold text-white/55">
+                العنوان (اختياري)
+              </label>
+              <input
+                id="match-address"
+                type="text"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                disabled={creatingMatch}
+                placeholder="العنوان أو رابط الخريطة"
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="match-notes" className="text-xs font-bold text-white/55">
+                ملاحظات (اختيارية)
+              </label>
+              <input
+                id="match-notes"
+                type="text"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                disabled={creatingMatch}
+                placeholder="أي تفاصيل إضافية"
+                className={inputClass}
+              />
+            </div>
+
+            {matchError ? (
+              <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-2">
+                {matchError}
+              </p>
+            ) : null}
+            {matchSuccess ? (
+              <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-2">
+                {matchSuccess}
+              </p>
+            ) : null}
+
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                disabled={creatingMatch}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+              >
+                {creatingMatch ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                إنشاء المباراة
+              </button>
+            </div>
+          </form>
+        </Card>
+      </section>
 
       {actionError ? (
         <div

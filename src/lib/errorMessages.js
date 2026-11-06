@@ -22,6 +22,11 @@ const ERROR_MESSAGES = [
   ],
   [/MATCH_NOT_FOUND/, 'لم يتم العثور على المباراة.'],
   [/ALREADY_REGISTERED/, 'أنت مسجّل في هذه المباراة بالفعل.'],
+  [/INVALID_REGISTRATION_WINDOW/, 'وقت فتح التسجيل يجب أن يكون قبل إغلاقه وقبل انطلاق المباراة.'],
+  [
+    /duplicate key|unique constraint|matches_local_date_uidx/i,
+    'توجد مباراة في هذا التاريخ بالفعل. اختر تاريخًا آخر للمباراة.',
+  ],
   [
     /bucket not found|bucket.*not found/i,
     'مساحة الصور غير مهيأة. طبّق تحديث قاعدة البيانات 0003 أولًا.',
