@@ -249,6 +249,11 @@ export default function MatchDetails() {
   const [ratingError, setRatingError] = useState('')
   const [ratingSuccess, setRatingSuccess] = useState('')
   const [ratingTarget, setRatingTarget] = useState(null)
+  const [externalName, setExternalName] = useState('')
+  const [externalPosition, setExternalPosition] = useState('')
+  const [externalBusy, setExternalBusy] = useState(false)
+  const [externalError, setExternalError] = useState('')
+  const [externalSuccess, setExternalSuccess] = useState('')
   const [cancelRegistrationId, setCancelRegistrationId] = useState(null)
   const [registrationError, setRegistrationError] = useState('')
   const [registrationSuccess, setRegistrationSuccess] = useState('')
@@ -533,6 +538,40 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleAddExternalPlayer(event) {
+    event.preventDefault()
+    const name = externalName.trim()
+    if (name.length < 2) {
+      setExternalError('أدخل اسم اللاعب الخارجي (حرفان على الأقل).')
+      return
+    }
+    setExternalBusy(true)
+    setExternalError('')
+    setExternalSuccess('')
+
+    const { error } = await supabase.rpc('admin_add_external_player', {
+      p_match_id: matchId,
+      p_full_name: name,
+      p_position_code: externalPosition || null,
+    })
+    setExternalBusy(false)
+
+    if (error) {
+      setExternalError(toArabicError(error, 'تعذر إضافة اللاعب الخارجي.'))
+      return
+    }
+
+    setExternalName('')
+    setExternalPosition('')
+    setExternalSuccess('تمت إضافة اللاعب الخارجي إلى هذه المباراة.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
     ])
   }
@@ -824,6 +863,73 @@ export default function MatchDetails() {
               {teams.length ? 'إعادة توزيع الفريقين' : 'توليد توزيع الفريقين'}
             </button>
           </div>
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <UserPlus className="size-5 text-brand-300" />
+                إضافة لاعب خارجي
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                لللاعبين خارج المجموعة في مباراة واحدة فقط؛ لا يحتاج حسابًا أو تسجيلًا مسبقًا.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddExternalPlayer} className="mt-4 grid gap-4 md:grid-cols-[1fr_220px_auto]">
+            <div>
+              <label htmlFor="external-player-name" className="text-xs font-bold text-white/55">
+                اسم اللاعب
+              </label>
+              <input
+                id="external-player-name"
+                type="text"
+                value={externalName}
+                onChange={(event) => setExternalName(event.target.value)}
+                maxLength={80}
+                required
+                disabled={externalBusy}
+                placeholder="اسم اللاعب الخارجي"
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="external-player-position" className="text-xs font-bold text-white/55">
+                المركز (اختياري)
+              </label>
+              <select
+                id="external-player-position"
+                value={externalPosition}
+                onChange={(event) => setExternalPosition(event.target.value)}
+                disabled={externalBusy}
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+              >
+                <option value="">بدون مركز محدد</option>
+                {(positionsQuery.data ?? []).map((position) => (
+                  <option key={position.code} value={position.code}>
+                    {position.name_ar}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={externalBusy}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-7"
+            >
+              {externalBusy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              إضافة للمباراة
+            </button>
+
+            {externalError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{externalError}</p> : null}
+            {externalSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{externalSuccess}</p> : null}
+          </form>
         </Card>
       ) : null}
 

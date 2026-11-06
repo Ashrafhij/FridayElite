@@ -9,6 +9,7 @@ const ERROR_MESSAGES = [
   [/INVALID_INPUT|METHOD_NOT_ALLOWED/, 'تعذر إكمال العملية. حاول مرة أخرى.'],
   [/SERVER_ERROR/, 'تعذر إكمال العملية. حاول مرة أخرى.'],
   [/INVALID_AVATAR/, 'رابط الصورة غير صالح. أعد رفع الصورة الشخصية.'],
+  [/INVALID_EXTERNAL_PLAYER_NAME/, 'أدخل اسم اللاعب الخارجي (حرفان على الأقل).'],
   [/INVALID_IMAGE_TYPE/, 'اختر صورة بصيغة JPG أو PNG أو WebP.'],
   [
     /IMAGE_TOO_LARGE|object exceeded the maximum allowed size|payload too large/i,
