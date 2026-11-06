@@ -23,6 +23,13 @@ const ERROR_MESSAGES = [
   [/MATCH_NOT_FOUND/, 'لم يتم العثور على المباراة.'],
   [/ALREADY_REGISTERED/, 'أنت مسجّل في هذه المباراة بالفعل.'],
   [/INVALID_REGISTRATION_WINDOW/, 'وقت فتح التسجيل يجب أن يكون قبل إغلاقه وقبل انطلاق المباراة.'],
+  [/INVALID_CONFIRMED_COUNT/, 'يُفعّل توليد الفرق عند اكتمال 18 لاعبًا مؤكدًا.'],
+  [
+    /INVALID_ROSTER_COMPOSITION/,
+    'تشكيلة اللاعبين لا تسمح بالتوزيع: يلزم حارسان مرمى و16 لاعب ميدان.',
+  ],
+  [/UNSUPPORTED_FORMATION/, 'توزيع الفرق مدعوم فقط بتشكيلة 1-3-3-2.'],
+  [/MATCH_CLOSED|MATCH_ALREADY_COMPLETED/, 'هذه المباراة مكتملة ولا يمكن تغيير فرقها.'],
   [
     /duplicate key|unique constraint|matches_local_date_uidx/i,
     'توجد مباراة في هذا التاريخ بالفعل. اختر تاريخًا آخر للمباراة.',

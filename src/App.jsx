@@ -17,6 +17,7 @@ const AccountStatus = lazy(() => import('./pages/AccountStatus'))
 const Admin = lazy(() => import('./pages/Admin'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Login = lazy(() => import('./pages/Login'))
+const MatchDetails = lazy(() => import('./pages/MatchDetails'))
 const Matches = lazy(() => import('./pages/Matches'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Profile = lazy(() => import('./pages/Profile'))
@@ -84,6 +85,14 @@ export default function App() {
               element={
                 <LazyPage>
                   <Matches />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="matches/:matchId"
+              element={
+                <LazyPage>
+                  <MatchDetails />
                 </LazyPage>
               }
             />

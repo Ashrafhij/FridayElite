@@ -1,4 +1,6 @@
+import { Link } from 'react-router-dom'
 import {
+  ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -225,6 +227,13 @@ export default function Matches() {
                     {activeRegistrationOpen ? 'التسجيل في المباراة' : 'التسجيل مغلق الآن'}
                   </button>
                 )}
+                <Link
+                  to={`/matches/${activeMatch.id}`}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white/75 transition-colors hover:border-white/20 hover:text-white"
+                >
+                  فتح تفاصيل المباراة
+                  <ArrowLeft className="size-4" />
+                </Link>
               </div>
             </Card>
           ) : (
@@ -285,6 +294,14 @@ export default function Matches() {
                       <p className="mt-0.5 text-[10px] text-white/40">فريق ب</p>
                     </div>
                   </div>
+
+                  <Link
+                    to={`/matches/${match.id}`}
+                    className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
+                  >
+                    فتح تفاصيل المباراة
+                    <ArrowLeft className="size-3.5" />
+                  </Link>
                 </Card>
               )
             })}

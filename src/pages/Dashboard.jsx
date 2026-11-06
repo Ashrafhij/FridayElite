@@ -103,7 +103,7 @@ export default function Dashboard() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
             {registrationOpen ? (
               <Link
-                to="/matches"
+                to={activeMatch ? `/matches/${activeMatch.id}` : '/matches'}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
               >
                 <Clock className="size-4" />
@@ -120,7 +120,7 @@ export default function Dashboard() {
               </button>
             )}
             <Link
-              to="/matches"
+              to={activeMatch ? `/matches/${activeMatch.id}` : '/matches'}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white/75 transition-colors hover:border-white/20 hover:text-white"
             >
               تفاصيل المباراة
