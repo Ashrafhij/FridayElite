@@ -255,6 +255,11 @@ export default function MatchDetails() {
   const [externalBusy, setExternalBusy] = useState(false)
   const [externalError, setExternalError] = useState('')
   const [externalSuccess, setExternalSuccess] = useState('')
+  const [swapPlayerA, setSwapPlayerA] = useState('')
+  const [swapPlayerB, setSwapPlayerB] = useState('')
+  const [swapBusy, setSwapBusy] = useState(false)
+  const [swapError, setSwapError] = useState('')
+  const [swapSuccess, setSwapSuccess] = useState('')
   const [cancelRegistrationId, setCancelRegistrationId] = useState(null)
   const [registrationError, setRegistrationError] = useState('')
   const [registrationSuccess, setRegistrationSuccess] = useState('')
@@ -534,6 +539,38 @@ export default function MatchDetails() {
 
     setGenerating(false)
     setGenerateSuccess('تم توليد توزيع الفريقين ونشره للاعبين.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleSwapPlayers(event) {
+    event.preventDefault()
+    if (!match || !swapPlayerA || !swapPlayerB || swapPlayerA === swapPlayerB) {
+      setSwapError('اختر لاعبين مختلفين للمبادلة.')
+      return
+    }
+    setSwapBusy(true)
+    setSwapError('')
+    setSwapSuccess('')
+
+    const { error } = await supabase.rpc('swap_team_players', {
+      p_match_id: match.id,
+      p_player_a: swapPlayerA,
+      p_player_b: swapPlayerB,
+    })
+    setSwapBusy(false)
+
+    if (error) {
+      setSwapError(toArabicError(error, 'تعذر تنفيذ المبادلة.'))
+      return
+    }
+
+    setSwapSuccess('تم تبديل اللاعبين وتحديث توزيع الفرق.')
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
@@ -864,6 +901,86 @@ export default function MatchDetails() {
               {teams.length ? 'إعادة توزيع الفريقين' : 'توليد توزيع الفريقين'}
             </button>
           </div>
+        </Card>
+      ) : null}
+
+      {isAdmin && teams.length ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+              <RotateCcw className="size-5 text-brand-300" />
+              مبادلة لاعبين
+            </h2>
+            <p className="mt-1 text-xs leading-6 text-white/50">
+              اختر لاعبين من نفس الفريق أو من فريقين مختلفين لتبديل فريقهم ومركزهم.
+            </p>
+          </div>
+
+          <form onSubmit={handleSwapPlayers} className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <label htmlFor="swap-player-a" className="text-xs font-bold text-white/55">
+                اللاعب الأول
+              </label>
+              <select
+                id="swap-player-a"
+                value={swapPlayerA}
+                onChange={(event) => setSwapPlayerA(event.target.value)}
+                disabled={swapBusy}
+                required
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+              >
+                <option value="">اختر لاعبًا</option>
+                {assignments.map((assignment) => {
+                  const player = directoryById.get(assignment.player_id)
+                  const team = teamById.get(assignment.team_id)
+                  const position = positionByCode.get(assignment.assigned_position_code)
+                  return (
+                    <option key={assignment.id} value={assignment.player_id}>
+                      {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''} · {position?.name_ar ?? assignment.assigned_position_code}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="swap-player-b" className="text-xs font-bold text-white/55">
+                اللاعب الثاني
+              </label>
+              <select
+                id="swap-player-b"
+                value={swapPlayerB}
+                onChange={(event) => setSwapPlayerB(event.target.value)}
+                disabled={swapBusy}
+                required
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+              >
+                <option value="">اختر لاعبًا</option>
+                {assignments.map((assignment) => {
+                  const player = directoryById.get(assignment.player_id)
+                  const team = teamById.get(assignment.team_id)
+                  const position = positionByCode.get(assignment.assigned_position_code)
+                  return (
+                    <option key={assignment.id} value={assignment.player_id}>
+                      {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''} · {position?.name_ar ?? assignment.assigned_position_code}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={swapBusy || !swapPlayerA || !swapPlayerB}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-7"
+            >
+              {swapBusy ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+              تنفيذ المبادلة
+            </button>
+
+            {swapError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{swapError}</p> : null}
+            {swapSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{swapSuccess}</p> : null}
+          </form>
         </Card>
       ) : null}
 
