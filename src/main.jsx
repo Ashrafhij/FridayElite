@@ -15,11 +15,17 @@ const queryClient = new QueryClient({
     },
   },
 })
-//ashraf
+
+// GitHub Pages serves the app from a sub-path (e.g. /FridayElite/).
+// The router must use the same base, otherwise routes like
+// /FridayElite/login are treated as unknown and render the 404 page.
+const buildBase = import.meta.env.BASE_URL
+const routerBasename = buildBase === '/' ? undefined : buildBase.replace(/\/$/, '')
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <AuthProvider>
           <App />
         </AuthProvider>
