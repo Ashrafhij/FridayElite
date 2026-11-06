@@ -15,6 +15,13 @@ const ERROR_MESSAGES = [
     'حجم الصورة كبير. الحد الأقصى 5 ميجابايت.',
   ],
   [/IMAGE_PROCESSING_FAILED|IMAGE_REQUIRED/, 'تعذر معالجة الصورة. جرّب صورة أخرى.'],
+  [/REGISTRATION_NOT_OPEN/, 'التسجيل لم يفتح بعد. يفتح الخميس الساعة ١٠:٠٠ صباحًا.'],
+  [
+    /REGISTRATION_CLOSED|REGISTRATION_LOCKED/,
+    'انتهت فترة التسجيل. التسجيل مفتوح من الخميس ١٠:٠٠ حتى الجمعة ٢٠:٠٠.',
+  ],
+  [/MATCH_NOT_FOUND/, 'لم يتم العثور على المباراة.'],
+  [/ALREADY_REGISTERED/, 'أنت مسجّل في هذه المباراة بالفعل.'],
   [
     /bucket not found|bucket.*not found/i,
     'مساحة الصور غير مهيأة. طبّق تحديث قاعدة البيانات 0003 أولًا.',

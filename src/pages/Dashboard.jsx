@@ -16,12 +16,14 @@ import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
 import StatTile from '../components/ui/StatTile'
 import { useAuth } from '../context/AuthContext'
+import { useRegistrationWindow } from '../hooks/useRegistrationWindow'
+import { formatRegistrationDateTime } from '../lib/registrationWindow'
 
 const steps = [
   {
     icon: CalendarDays,
-    title: 'يفتح التسجيل الخميس',
-    text: 'في تمام الساعة ١٠:٠٠ صباحًا، تُفتح ١٨ بطاقة تأكيد للأسرع.',
+    title: 'فترة التسجيل الأسبوعية',
+    text: 'يُفتح التسجيل الخميس الساعة ١٠:٠٠ صباحًا ويغلق الجمعة الساعة ٢٠:٠٠ مساءً، بتوقيت محلي.',
   },
   {
     icon: UserCheck,
@@ -37,6 +39,8 @@ const steps = [
 
 export default function Dashboard() {
   const { profile, isAdmin } = useAuth()
+  const registrationWindow = useRegistrationWindow()
+  const registrationOpen = registrationWindow.isOpen
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -83,17 +87,27 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              disabled
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 opacity-60"
-            >
-              <Lock className="size-4" />
-              التسجيل لم يفتح بعد
-            </button>
+            {registrationOpen ? (
+              <Link
+                to="/matches"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+              >
+                <Clock className="size-4" />
+                التسجيل مفتوح الآن
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 opacity-60"
+              >
+                <Lock className="size-4" />
+                التسجيل لم يفتح بعد
+              </button>
+            )}
             <Link
               to="/matches"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white/75 transition-colors hover:border-white/20 hover:text-white"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white/75 transition-colors hover:border-white/20 hover:text-white"
             >
               تفاصيل المباراة
               <ArrowLeft className="size-4" />
@@ -102,7 +116,9 @@ export default function Dashboard() {
 
           <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-pitch-950/50 px-3 py-1.5 text-[11px] font-semibold text-white/50">
             <Clock className="size-3.5 text-brand-400/80" />
-            يفتح التسجيل الخميس الساعة ١٠:٠٠ صباحًا
+            {registrationOpen && registrationWindow.currentWindow
+              ? `التسجيل مفتوح الآن — يغلق ${formatRegistrationDateTime(registrationWindow.currentWindow.closeAt)}`
+              : `يفتح التسجيل ${formatRegistrationDateTime(registrationWindow.nextWindow.openAt)}`}
           </p>
         </div>
       </section>
