@@ -56,7 +56,7 @@ create table if not exists public.player_ratings (
   match_id          uuid not null references public.matches (id) on delete cascade,
   rater_id          uuid not null references public.profiles (id) on delete cascade,
   rated_player_id   uuid not null references public.profiles (id) on delete restrict,
-  rating            smallint not null check (rating between 1 and 5),
+  rating            smallint not null check (rating between 1 and 10),
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
   constraint player_ratings_no_self check (rater_id <> rated_player_id),
@@ -87,7 +87,7 @@ grant select on table public.player_ratings to authenticated;
 create table if not exists public.match_player_rating_stats (
   match_id       uuid not null references public.matches (id) on delete cascade,
   player_id      uuid not null references public.profiles (id) on delete cascade,
-  average_rating numeric(3, 2) not null check (average_rating between 1 and 5),
+  average_rating numeric(4, 2) not null check (average_rating between 1 and 10),
   rating_count   integer not null check (rating_count > 0),
   updated_at     timestamptz not null default now(),
   primary key (match_id, player_id)
@@ -362,7 +362,7 @@ begin
   if p_rated_player_id = v_uid then
     raise exception 'CANNOT_RATE_SELF';
   end if;
-  if p_rating is null or p_rating < 1 or p_rating > 5 then
+  if p_rating is null or p_rating < 1 or p_rating > 10 then
     raise exception 'INVALID_RATING';
   end if;
   if not public.is_approved() then

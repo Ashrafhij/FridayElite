@@ -26,7 +26,7 @@ const ERROR_MESSAGES = [
   [/INVALID_CONFIRMED_COUNT/, 'يُفعّل توليد الفرق عند اكتمال 18 لاعبًا مؤكدًا.'],
   [/MATCH_NOT_COMPLETED/, 'يمكن التقييم بعد اكتمال المباراة فقط.'],
   [/CANNOT_RATE_SELF/, 'لا يمكنك تقييم نفسك.'],
-  [/INVALID_RATING/, 'التقييم يجب أن يكون بين 1 و5.'],
+  [/INVALID_RATING/, 'التقييم يجب أن يكون بين 1 و10.'],
   [/NOT_MATCH_PARTICIPANT/, 'فقط اللاعبون المشاركون في المباراة يمكن تقييمهم.'],
   [/INVALID_SCORE|INVALID_SCORERS|INVALID_SCORER_PLAYER/, 'تحقق من النتيجة والهدافين قبل الحفظ.'],
   [/RESULT_SCORE_MISMATCH/, 'أهداف الهدافين لا تطابق النتيجة النهائية.'],

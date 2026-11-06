@@ -922,7 +922,7 @@ export default function MatchDetails() {
               تقييمات اللاعبين
             </h2>
             <p className="mt-1 text-sm text-white/45">
-              بعد اكتمال المباراة، قيّم كل لاعب آخر من 1 إلى 5. لا يمكنك تقييم نفسك.
+              بعد اكتمال المباراة، قيّم كل لاعب آخر من 1 إلى 10. لا يمكنك تقييم نفسك.
             </p>
           </div>
           <Badge variant={canRate ? 'brand' : 'neutral'}>{canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}</Badge>
@@ -950,13 +950,13 @@ export default function MatchDetails() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-extrabold text-sand-100">{player?.full_name ?? 'لاعب'}</p>
                         <p className="mt-0.5 text-[11px] text-white/45">
-                          {stat ? `متوسط ${stat.average_rating} من 5 · ${stat.rating_count} تقييم` : 'لا توجد تقييمات بعد'}
+                          {stat ? `متوسط ${stat.average_rating} من 10 · ${stat.rating_count} تقييم` : 'لا توجد تقييمات بعد'}
                         </p>
                       </div>
                       {myRating ? <Badge variant="brand">قيّمتك: {myRating}</Badge> : null}
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-1.5" aria-label={`تقييم ${player?.full_name ?? 'لاعب'}`}>
-                      {[1, 2, 3, 4, 5].map((value) => {
+                    <div className="mt-4 grid grid-cols-5 gap-1.5 sm:grid-cols-10" aria-label={`تقييم ${player?.full_name ?? 'لاعب'}`}>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => {
                         const active = value <= myRating
                         const busy = ratingBusyPlayerId === registration.player_id
                         return (
@@ -965,10 +965,10 @@ export default function MatchDetails() {
                             type="button"
                             onClick={() => void handleRatePlayer(registration.player_id, value)}
                             disabled={busy || !canRate}
-                            aria-label={`تقييم ${value} من 5`}
-                            className={`grid min-h-11 min-w-11 place-items-center rounded-xl border transition-colors disabled:opacity-60 ${active ? 'border-brand-400/40 bg-brand-400/15 text-brand-300' : 'border-white/10 bg-white/[0.03] text-white/40 hover:text-brand-200'}`}
+                            aria-label={`تقييم ${value} من 10`}
+                            className={`grid min-h-11 min-w-9 place-items-center rounded-xl border text-sm font-black transition-colors disabled:opacity-60 ${active ? 'border-brand-400/40 bg-brand-400/15 text-brand-300' : 'border-white/10 bg-white/[0.03] text-white/40 hover:text-brand-200'}`}
                           >
-                            <Star className={`size-5 ${active ? 'fill-current' : ''}`} />
+                            {value}
                           </button>
                         )
                       })}
