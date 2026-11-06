@@ -10,8 +10,12 @@ import {
   Loader2,
   Lock,
   MapPin,
+  Plus,
   RotateCcw,
   Shuffle,
+  Star,
+  Trash2,
+  Trophy,
   Users,
   UserCheck,
   UserRound,
@@ -170,11 +174,22 @@ function AssignmentRow({ assignment, directoryById, positionByCode }) {
 
 export default function MatchDetails() {
   const { matchId } = useParams()
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile } = useAuth()
   const queryClient = useQueryClient()
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
   const [generateSuccess, setGenerateSuccess] = useState('')
+  const [resultFormOpen, setResultFormOpen] = useState(false)
+  const [teamAScore, setTeamAScore] = useState('')
+  const [teamBScore, setTeamBScore] = useState('')
+  const [resultNotes, setResultNotes] = useState('')
+  const [scorersDraft, setScorersDraft] = useState([{ player_id: '', goals: '1', assists: '0' }])
+  const [resultBusy, setResultBusy] = useState(false)
+  const [resultError, setResultError] = useState('')
+  const [resultSuccess, setResultSuccess] = useState('')
+  const [ratingBusyPlayerId, setRatingBusyPlayerId] = useState(null)
+  const [ratingError, setRatingError] = useState('')
+  const [ratingSuccess, setRatingSuccess] = useState('')
 
   useMatchRealtime(matchId)
 
@@ -276,6 +291,83 @@ export default function MatchDetails() {
     staleTime: 10 * 60 * 1000,
   })
 
+  const resultQuery = useQuery({
+    queryKey: ['match-result', matchId],
+    enabled: Boolean(matchQuery.data),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_results')
+        .select('match_id,team_a_score,team_b_score,notes,created_at,updated_at')
+        .eq('match_id', matchId)
+        .maybeSingle()
+      if (error) {
+        console.debug('match_results unavailable', error)
+        return null
+      }
+      return data ?? null
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
+  const scorersQuery = useQuery({
+    queryKey: ['match-scorers', matchId],
+    enabled: Boolean(matchQuery.data),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_scorers')
+        .select('id,player_id,team_id,goals,assists,created_at')
+        .eq('match_id', matchId)
+        .order('goals', { ascending: false })
+        .order('assists', { ascending: false })
+      if (error) {
+        console.debug('match_scorers unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
+  const myRatingsQuery = useQuery({
+    queryKey: ['my-match-ratings', matchId, profile?.id],
+    enabled: Boolean(matchQuery.data && profile?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('player_ratings')
+        .select('rated_player_id,rating,created_at,updated_at')
+        .eq('match_id', matchId)
+        .eq('rater_id', profile.id)
+      if (error) {
+        console.debug('player_ratings unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
+  const ratingStatsQuery = useQuery({
+    queryKey: ['match-rating-stats', matchId],
+    enabled: Boolean(matchQuery.data),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_player_rating_stats')
+        .select('player_id,average_rating,rating_count,updated_at')
+        .eq('match_id', matchId)
+        .order('average_rating', { ascending: false })
+      if (error) {
+        console.debug('match_player_rating_stats unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
   const registrations = registrationsQuery.data ?? []
   const assignments = assignmentsQuery.data ?? []
 
@@ -322,8 +414,20 @@ export default function MatchDetails() {
   const waitlistedCount = statsQuery.data?.waitlisted_count ?? waitlistedPlayers.length
   const totalRegistrationCount =
     statsQuery.data?.total_registration_count ?? registrations.length
+  const result = resultQuery.data ?? null
+  const matchScorers = scorersQuery.data ?? []
+  const myRatingsByPlayer = new Map((myRatingsQuery.data ?? []).map((item) => [item.rated_player_id, item.rating]))
+  const ratingStatsByPlayer = new Map((ratingStatsQuery.data ?? []).map((item) => [item.player_id, item]))
+  const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
+  const canRate = Boolean(match?.status === 'completed' && currentUserRegistration)
   const match = matchQuery.data
   const teams = teamsQuery.data ?? []
+  const teamById = new Map(teams.map((team) => [team.id, team]))
+  const assignedPlayerOptions = assignments.map((assignment) => ({
+    assignment,
+    player: directoryById.get(assignment.player_id),
+    team: teamById.get(assignment.team_id),
+  }))
   const canGenerateTeams = Boolean(
     isAdmin && match && confirmedCount === 18 && !['cancelled', 'completed'].includes(match.status),
   )
@@ -349,6 +453,132 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  function openResultForm() {
+    setTeamAScore(result ? String(result.team_a_score) : '')
+    setTeamBScore(result ? String(result.team_b_score) : '')
+    setResultNotes(result?.notes ?? '')
+    setScorersDraft(
+      matchScorers.length
+        ? matchScorers.map((scorer) => ({
+            player_id: scorer.player_id,
+            goals: String(scorer.goals),
+            assists: String(scorer.assists ?? 0),
+          }))
+        : [{ player_id: '', goals: '1', assists: '0' }],
+    )
+    setResultError('')
+    setResultSuccess('')
+    setResultFormOpen(true)
+  }
+
+  function updateScorerDraft(index, field, value) {
+    setScorersDraft((current) =>
+      current.map((scorer, scorerIndex) =>
+        scorerIndex === index ? { ...scorer, [field]: value } : scorer,
+      ),
+    )
+  }
+
+  async function handleSubmitResult(event) {
+    event.preventDefault()
+    if (!match) return
+    setResultError('')
+    setResultSuccess('')
+
+    const scoreA = Number(teamAScore)
+    const scoreB = Number(teamBScore)
+    const scorerPayload = scorersDraft
+      .filter((scorer) => scorer.player_id)
+      .map((scorer) => ({
+        player_id: scorer.player_id,
+        goals: Number(scorer.goals),
+        assists: Number(scorer.assists ?? 0),
+      }))
+
+    const playerIds = scorerPayload.map((scorer) => scorer.player_id)
+    if (new Set(playerIds).size !== playerIds.length) {
+      setResultError('لا يمكن تكرار اللاعب نفسه في قائمة الهدافين.')
+      return
+    }
+    if (
+      !Number.isInteger(scoreA) ||
+      !Number.isInteger(scoreB) ||
+      scoreA < 0 ||
+      scoreB < 0 ||
+      scoreA > 99 ||
+      scoreB > 99 ||
+      scorerPayload.some((scorer) => scorer.goals < 1 || scorer.goals > 30 || scorer.assists < 0 || scorer.assists > 30)
+    ) {
+      setResultError('تحقق من النتيجة وعدد الأهداف/التمريرات.')
+      return
+    }
+
+    const assignmentByPlayer = new Map(assignments.map((assignment) => [assignment.player_id, assignment]))
+    let computedA = 0
+    let computedB = 0
+    for (const scorer of scorerPayload) {
+      const assignment = assignmentByPlayer.get(scorer.player_id)
+      const team = assignment ? teamById.get(assignment.team_id) : null
+      if (team?.side === 'A') computedA += scorer.goals
+      if (team?.side === 'B') computedB += scorer.goals
+    }
+
+    if (computedA !== scoreA || computedB !== scoreB) {
+      setResultError('أهداف الهدافين لا تطابق النتيجة النهائية. راجع اللاعبين والفرق.')
+      return
+    }
+
+    setResultBusy(true)
+    const { error } = await supabase.rpc('set_match_result', {
+      p_match_id: match.id,
+      p_team_a_score: scoreA,
+      p_team_b_score: scoreB,
+      p_scorers: scorerPayload,
+      p_notes: resultNotes.trim() || null,
+    })
+    setResultBusy(false)
+
+    if (error) {
+      setResultError(toArabicError(error, 'تعذر حفظ نتيجة المباراة.'))
+      return
+    }
+
+    setResultSuccess('تم حفظ نتيجة المباراة والهدافين.')
+    setResultFormOpen(false)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-result', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-scorers', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleRatePlayer(ratedPlayerId, rating) {
+    if (!match || !profile || ratedPlayerId === profile.id) return
+    setRatingBusyPlayerId(ratedPlayerId)
+    setRatingError('')
+    setRatingSuccess('')
+
+    const { error } = await supabase.rpc('rate_player', {
+      p_match_id: match.id,
+      p_rated_player_id: ratedPlayerId,
+      p_rating: rating,
+    })
+    setRatingBusyPlayerId(null)
+
+    if (error) {
+      setRatingError(toArabicError(error, 'تعذر حفظ التقييم.'))
+      return
+    }
+
+    setRatingSuccess('تم حفظ تقييمك.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['my-match-ratings', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-rating-stats', matchId] }),
     ])
   }
 
@@ -483,6 +713,161 @@ export default function MatchDetails() {
         </Card>
       ) : null}
 
+      <section className="mt-8" aria-label="نتيجة المباراة">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
+              <Trophy className="size-5 text-brand-300" />
+              نتيجة المباراة
+            </h2>
+            <p className="mt-1 text-sm text-white/45">النتيجة النهائية وهدافو المباراة.</p>
+          </div>
+          <Badge variant={result ? 'brand' : 'neutral'}>{result ? 'منشورة' : 'غير منشورة'}</Badge>
+        </div>
+
+        {result ? (
+          <Card className="overflow-hidden p-5 sm:p-6">
+            <div className="grid items-center gap-5 md:grid-cols-[1fr_auto_1fr]">
+              {['A', 'B'].map((side) => {
+                const team = teams.find((item) => item.side === side)
+                const score = side === 'A' ? result.team_a_score : result.team_b_score
+                const teamScorers = matchScorers.filter((scorer) => scorer.team_id === team?.id)
+                return (
+                  <div key={side} className="min-w-0 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="size-3.5 rounded-full" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
+                      <p className="text-sm font-extrabold text-sand-100">{team?.name_ar ?? (side === 'A' ? 'الفريق أ' : 'الفريق ب')}</p>
+                    </div>
+                    <p className="mt-3 text-5xl font-black tabular-nums text-sand-100">{score}</p>
+                    <div className="mt-4 space-y-2">
+                      {teamScorers.length ? (
+                        teamScorers.map((scorer) => {
+                          const player = directoryById.get(scorer.player_id)
+                          return (
+                            <div key={scorer.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2 text-start">
+                              <span className="min-w-0 truncate text-xs font-bold text-white/75">{player?.full_name ?? 'لاعب'}</span>
+                              <span className="shrink-0 text-[11px] font-extrabold text-brand-200">
+                                {scorer.goals} هدف{scorer.assists ? ` · ${scorer.assists} تمريرة` : ''}
+                              </span>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <p className="text-[11px] text-white/35">لا يوجد هدافون مسجلون.</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {result.notes ? <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-white/55">{result.notes}</p> : null}
+          </Card>
+        ) : (
+          <EmptyState icon={Trophy} title="لم تُنشر النتيجة بعد" description="ستظهر هنا النتيجة النهائية والهدافون بعد إدخال الإدارة لها." />
+        )}
+
+        {isAdmin ? (
+          <Card className="mt-4 border-brand-400/20 p-5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-extrabold text-sand-100">{result ? 'تعديل نتيجة المباراة' : 'إدخال نتيجة المباراة'}</h3>
+                <p className="mt-1 text-xs leading-6 text-white/50">
+                  {teams.length
+                    ? 'أدخل النتيجة النهائية والهدافين لكل فريق؛ يجب أن يطابق مجموع الأهداف النتيجة.'
+                    : 'أنشئ توزيع الفريقين أولًا لاختيار الهدافين حسب الفريق.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openResultForm}
+                disabled={!teams.length}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+              >
+                <Trophy className="size-4" />
+                {result ? 'تعديل النتيجة' : 'إدخال النتيجة'}
+              </button>
+            </div>
+
+            {resultFormOpen ? (
+              <form onSubmit={handleSubmitResult} className="mt-5 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label htmlFor="result-score-a" className="text-xs font-bold text-white/55">أهداف {teams.find((team) => team.side === 'A')?.name_ar ?? 'الفريق أ'}</label>
+                  <input id="result-score-a" type="number" min="0" max="99" value={teamAScore} onChange={(event) => setTeamAScore(event.target.value)} required disabled={resultBusy} className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50" />
+                </div>
+                <div>
+                  <label htmlFor="result-score-b" className="text-xs font-bold text-white/55">أهداف {teams.find((team) => team.side === 'B')?.name_ar ?? 'الفريق ب'}</label>
+                  <input id="result-score-b" type="number" min="0" max="99" value={teamBScore} onChange={(event) => setTeamBScore(event.target.value)} required disabled={resultBusy} className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label htmlFor="result-notes" className="text-xs font-bold text-white/55">ملاحظات النتيجة (اختياري)</label>
+                  <textarea id="result-notes" value={resultNotes} onChange={(event) => setResultNotes(event.target.value)} rows={3} disabled={resultBusy} className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <p className="text-xs font-bold text-white/55">الهدافون</p>
+                  <div className="mt-3 space-y-3">
+                    {scorersDraft.map((scorer, index) => (
+                      <div key={index} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 md:grid-cols-[1fr_110px_110px_auto]">
+                        <select
+                          value={scorer.player_id}
+                          onChange={(event) => updateScorerDraft(index, 'player_id', event.target.value)}
+                          disabled={resultBusy}
+                          required
+                          className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                          aria-label="اللاعب الهداف"
+                        >
+                          <option value="">اختر لاعبًا</option>
+                          {assignedPlayerOptions.map(({ assignment, player, team }) => (
+                            <option key={assignment.id} value={assignment.player_id}>
+                              {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="grid gap-1 text-[11px] font-bold text-white/45">
+                          أهداف
+                          <input type="number" min="1" max="30" value={scorer.goals} onChange={(event) => updateScorerDraft(index, 'goals', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                        </label>
+                        <label className="grid gap-1 text-[11px] font-bold text-white/45">
+                          تمريرات
+                          <input type="number" min="0" max="30" value={scorer.assists} onChange={(event) => updateScorerDraft(index, 'assists', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setScorersDraft((current) => current.filter((_, scorerIndex) => scorerIndex !== index))}
+                          disabled={resultBusy}
+                          className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-red-400/25 text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50"
+                          aria-label="إزالة الهداف"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => setScorersDraft((current) => [...current, { player_id: '', goals: '1', assists: '0' }])} disabled={resultBusy} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60">
+                    <Plus className="size-4" />
+                    إضافة هداف
+                  </button>
+                </div>
+
+                {resultError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-2">{resultError}</p> : null}
+                {resultSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-2">{resultSuccess}</p> : null}
+
+                <div className="flex flex-wrap gap-2 md:col-span-2">
+                  <button type="submit" disabled={resultBusy} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60">
+                    {resultBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                    حفظ النتيجة
+                  </button>
+                  <button type="button" onClick={() => setResultFormOpen(false)} disabled={resultBusy} className="inline-flex min-h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/60 transition-colors hover:text-white disabled:opacity-60">
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </Card>
+        ) : null}
+      </section>
+
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -527,6 +912,74 @@ export default function MatchDetails() {
             <EmptyState icon={History} title="لا يوجد لاعبون في الانتظار" description="عند اكتمال السعة، سينتقل التسجيل الجديد إلى هنا حسب الترتيب." />
           )}
         </div>
+      </section>
+
+      <section className="mt-8" aria-label="تقييمات اللاعبين">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
+              <Star className="size-5 text-brand-300" />
+              تقييمات اللاعبين
+            </h2>
+            <p className="mt-1 text-sm text-white/45">
+              بعد اكتمال المباراة، قيّم كل لاعب آخر من 1 إلى 5. لا يمكنك تقييم نفسك.
+            </p>
+          </div>
+          <Badge variant={canRate ? 'brand' : 'neutral'}>{canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}</Badge>
+        </div>
+
+        {ratingError ? <p role="alert" className="mb-4 rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200">{ratingError}</p> : null}
+        {ratingSuccess ? <p role="status" className="mb-4 rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200">{ratingSuccess}</p> : null}
+
+        {match.status !== 'completed' ? (
+          <EmptyState icon={Star} title="التقييم يبدأ بعد نهاية المباراة" description="عند اكتمال المباراة، ستظهر هنا إمكانية تقييم اللاعبين الآخرين." />
+        ) : !currentUserRegistration ? (
+          <EmptyState icon={Star} title="التقييم للمشاركين فقط" description="فقط اللاعبون المؤكدون في هذه المباراة يمكنهم التقييم." />
+        ) : confirmedPlayers.length > 1 ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {confirmedPlayers
+              .filter((registration) => registration.player_id !== profile?.id)
+              .map((registration) => {
+                const player = directoryById.get(registration.player_id)
+                const stat = ratingStatsByPlayer.get(registration.player_id)
+                const myRating = myRatingsByPlayer.get(registration.player_id) ?? 0
+                return (
+                  <Card key={registration.id} className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar player={player} size={42} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-extrabold text-sand-100">{player?.full_name ?? 'لاعب'}</p>
+                        <p className="mt-0.5 text-[11px] text-white/45">
+                          {stat ? `متوسط ${stat.average_rating} من 5 · ${stat.rating_count} تقييم` : 'لا توجد تقييمات بعد'}
+                        </p>
+                      </div>
+                      {myRating ? <Badge variant="brand">قيّمتك: {myRating}</Badge> : null}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-1.5" aria-label={`تقييم ${player?.full_name ?? 'لاعب'}`}>
+                      {[1, 2, 3, 4, 5].map((value) => {
+                        const active = value <= myRating
+                        const busy = ratingBusyPlayerId === registration.player_id
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => void handleRatePlayer(registration.player_id, value)}
+                            disabled={busy || !canRate}
+                            aria-label={`تقييم ${value} من 5`}
+                            className={`grid min-h-11 min-w-11 place-items-center rounded-xl border transition-colors disabled:opacity-60 ${active ? 'border-brand-400/40 bg-brand-400/15 text-brand-300' : 'border-white/10 bg-white/[0.03] text-white/40 hover:text-brand-200'}`}
+                          >
+                            <Star className={`size-5 ${active ? 'fill-current' : ''}`} />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Card>
+                )
+              })}
+          </div>
+        ) : (
+          <EmptyState icon={Star} title="لا يوجد لاعبون آخرون للتقييم" description="يلزم مشاركة لاعب آخر على الأقل في هذه المباراة." />
+        )}
       </section>
 
       <section className="mt-8" aria-label="فرق المباراة">

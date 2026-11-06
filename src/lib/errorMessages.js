@@ -24,6 +24,12 @@ const ERROR_MESSAGES = [
   [/ALREADY_REGISTERED/, 'أنت مسجّل في هذه المباراة بالفعل.'],
   [/INVALID_REGISTRATION_WINDOW/, 'وقت فتح التسجيل يجب أن يكون قبل إغلاقه وقبل انطلاق المباراة.'],
   [/INVALID_CONFIRMED_COUNT/, 'يُفعّل توليد الفرق عند اكتمال 18 لاعبًا مؤكدًا.'],
+  [/MATCH_NOT_COMPLETED/, 'يمكن التقييم بعد اكتمال المباراة فقط.'],
+  [/CANNOT_RATE_SELF/, 'لا يمكنك تقييم نفسك.'],
+  [/INVALID_RATING/, 'التقييم يجب أن يكون بين 1 و5.'],
+  [/NOT_MATCH_PARTICIPANT/, 'فقط اللاعبون المشاركون في المباراة يمكن تقييمهم.'],
+  [/INVALID_SCORE|INVALID_SCORERS|INVALID_SCORER_PLAYER/, 'تحقق من النتيجة والهدافين قبل الحفظ.'],
+  [/RESULT_SCORE_MISMATCH/, 'أهداف الهدافين لا تطابق النتيجة النهائية.'],
   [
     /INVALID_ROSTER_COMPOSITION/,
     'تشكيلة اللاعبين لا تسمح بالتوزيع: يلزم حارسان مرمى و16 لاعب ميدان.',

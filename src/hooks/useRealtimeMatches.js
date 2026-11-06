@@ -49,6 +49,10 @@ export function useMatchRealtime(matchId) {
       void queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] })
+      void queryClient.invalidateQueries({ queryKey: ['match-result', matchId] })
+      void queryClient.invalidateQueries({ queryKey: ['match-scorers', matchId] })
+      void queryClient.invalidateQueries({ queryKey: ['my-match-ratings', matchId] })
+      void queryClient.invalidateQueries({ queryKey: ['match-rating-stats', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['my-registration'] })
     }
 
@@ -72,6 +76,21 @@ export function useMatchRealtime(matchId) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'team_assignments', filter: `match_id=eq.${matchId}` },
+        invalidateMatch,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_results', filter: `match_id=eq.${matchId}` },
+        invalidateMatch,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_scorers', filter: `match_id=eq.${matchId}` },
+        invalidateMatch,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_player_rating_stats', filter: `match_id=eq.${matchId}` },
         invalidateMatch,
       )
       .subscribe((status, error) => logRealtimeStatus('match-details', status, error))
