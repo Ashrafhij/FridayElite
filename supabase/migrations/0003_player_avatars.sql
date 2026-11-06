@@ -33,12 +33,23 @@ set public             = excluded.public,
 -- ----------------------------------------------------------------------------
 -- 2. Storage policies
 -- ----------------------------------------------------------------------------
--- Reads use the public object URL, so no SELECT policy is needed (and no
--- listing access is granted). Uploads and deletes are limited to the folder
--- named after the authenticated user.
+-- Reads use the public object URL, so no listing access is granted. The own-
+-- folder SELECT policy is still required because the client uploads with
+-- upsert=true: Supabase needs SELECT + UPDATE to overwrite an existing file.
+-- Uploads and deletes are limited to the folder named after the authenticated
+-- user.
+drop policy if exists avatars_select_own on storage.objects;
 drop policy if exists avatars_insert_own on storage.objects;
 drop policy if exists avatars_update_own on storage.objects;
 drop policy if exists avatars_delete_own on storage.objects;
+
+create policy avatars_select_own on storage.objects
+  for select
+  to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
 
 create policy avatars_insert_own on storage.objects
   for insert
