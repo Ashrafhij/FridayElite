@@ -452,6 +452,24 @@ export default function MatchDetails() {
     staleTime: 30_000,
   })
 
+  const allTimeStatsQuery = useQuery({
+    queryKey: ['match-player-all-time-stats', matchId, playerIds.join('|')],
+    enabled: Boolean(matchQuery.data && playerIds.length > 0),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('player_all_time_stats')
+        .select('player_id,total_goals,total_assists,matches_with_stats,average_goals,average_assists')
+        .in('player_id', playerIds)
+      if (error) {
+        console.debug('player_all_time_stats unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  })
+
   const directoryById = useMemo(
     () => new Map((directoryQuery.data ?? []).map((player) => [player.id, player])),
     [directoryQuery.data],
@@ -481,6 +499,7 @@ export default function MatchDetails() {
   const matchScorers = scorersQuery.data ?? []
   const myRatingsByPlayer = new Map((myRatingsQuery.data ?? []).map((item) => [item.rated_player_id, item.rating]))
   const ratingStatsByPlayer = new Map((ratingStatsQuery.data ?? []).map((item) => [item.player_id, item]))
+  const allTimeStatsByPlayer = new Map((allTimeStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
   const canRate = Boolean(match?.status === 'completed' && currentUserRegistration)
   const teams = teamsQuery.data ?? []
@@ -1011,13 +1030,17 @@ export default function MatchDetails() {
                         {group.registrations.map((registration) => {
                           const player = directoryById.get(registration.player_id)
                           const stat = ratingStatsByPlayer.get(registration.player_id)
+                          const allTime = allTimeStatsByPlayer.get(registration.player_id)
+                          const allTimeLabel = allTime && (allTime.total_goals || allTime.total_assists)
+                            ? `${allTime.total_goals} هدف · ${allTime.total_assists} تمريرة`
+                            : null
                           return (
                             <PitchPlayerButton
                               key={registration.id}
                               player={player}
                               averageRating={stat?.average_rating}
                               myRating={myRatingsByPlayer.get(registration.player_id) ?? 0}
-                              subLabel={roleLabel(registration.roster_role)}
+                              subLabel={allTimeLabel ?? roleLabel(registration.roster_role)}
                               selected={ratingTarget?.playerId === registration.player_id}
                               onSelect={() =>
                                 setRatingTarget({
@@ -1066,13 +1089,17 @@ export default function MatchDetails() {
                                 const player = directoryById.get(assignment.player_id)
                                 const position = positionByCode.get(assignment.assigned_position_code)
                                 const stat = ratingStatsByPlayer.get(assignment.player_id)
+                                const allTime = allTimeStatsByPlayer.get(assignment.player_id)
+                                const allTimeLabel = allTime && (allTime.total_goals || allTime.total_assists)
+                                  ? `${allTime.total_goals} هدف · ${allTime.total_assists} تمريرة`
+                                  : null
                                 return (
                                   <PitchPlayerButton
                                     key={assignment.id}
                                     player={player}
                                     averageRating={stat?.average_rating}
                                     myRating={myRatingsByPlayer.get(assignment.player_id) ?? 0}
-                                    subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
+                                    subLabel={allTimeLabel ?? `${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
                                     selected={ratingTarget?.playerId === assignment.player_id}
                                     onSelect={() =>
                                       setRatingTarget({
@@ -1143,6 +1170,12 @@ export default function MatchDetails() {
                       ? `متوسط ${ratingTarget.average.average_rating} من 10 · ${ratingTarget.average.rating_count} تقييم`
                       : `لا توجد تقييمات بعد · ${ratingTarget.positionLabel ?? ''}`}
                   </p>
+                  {allTimeStatsByPlayer.get(ratingTarget.playerId) ? (
+                    <p className="mt-1 text-[11px] text-white/45">
+                      كل المباريات: {allTimeStatsByPlayer.get(ratingTarget.playerId).total_goals} هدف ·{' '}
+                      {allTimeStatsByPlayer.get(ratingTarget.playerId).total_assists} تمريرة
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <button

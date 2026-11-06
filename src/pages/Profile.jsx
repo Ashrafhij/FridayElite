@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
   BadgeCheck,
+  CalendarDays,
   Camera,
   CheckCircle2,
   ChevronDown,
@@ -12,6 +13,8 @@ import {
   Phone,
   Save,
   ShieldCheck,
+  Sparkles,
+  Target,
   Trash2,
   UserRound,
   X,
@@ -19,6 +22,7 @@ import {
 import PageHeader from '../components/layout/PageHeader'
 import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
+import StatTile from '../components/ui/StatTile'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { toArabicError } from '../lib/errorMessages'
@@ -118,6 +122,25 @@ export default function Profile() {
   })
 
   const savedPositionsKey = savedPositions.map((item) => item.position_code).join('|')
+
+  const { data: allTimeStats } = useQuery({
+    queryKey: ['player-all-time-stats', profile?.id],
+    enabled: Boolean(profile?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('player_all_time_stats')
+        .select('player_id,total_goals,total_assists,matches_with_stats,average_goals,average_assists')
+        .eq('player_id', profile.id)
+        .maybeSingle()
+      if (error) {
+        console.debug('player_all_time_stats unavailable', error)
+        return null
+      }
+      return data ?? null
+    },
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  })
 
   useEffect(() => {
     setSelectedPositions(savedPositions.map((item) => item.position_code))
@@ -357,6 +380,12 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="إحصائياتي الكلية">
+        <StatTile icon={Target} label="إجمالي الأهداف" value={allTimeStats?.total_goals ?? 0} hint={allTimeStats ? `متوسط ${allTimeStats.average_goals} هدف في المباراة` : 'عبر كل المباريات'} />
+        <StatTile icon={Sparkles} label="إجمالي التمريرات" value={allTimeStats?.total_assists ?? 0} hint={allTimeStats ? `متوسط ${allTimeStats.average_assists} تمريرة في المباراة` : 'عبر كل المباريات'} />
+        <StatTile icon={CalendarDays} label="مباريات سجّل فيها" value={allTimeStats?.matches_with_stats ?? 0} hint="مباريات لها نتيجة محفوظة" />
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="p-6 lg:col-span-1">
