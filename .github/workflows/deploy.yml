@@ -2,6 +2,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
