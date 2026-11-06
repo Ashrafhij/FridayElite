@@ -126,7 +126,14 @@ function InfoItem({ icon: Icon, label, value, dir }) {
   )
 }
 
-function RegistrationPlayerRow({ registration, directoryById, positionByCode }) {
+function RegistrationPlayerRow({
+  registration,
+  directoryById,
+  positionByCode,
+  showDelete = false,
+  deleting = false,
+  onDelete,
+}) {
   const player = directoryById.get(registration.player_id)
   const name = player?.full_name ?? 'لاعب'
   const details = []
@@ -146,6 +153,18 @@ function RegistrationPlayerRow({ registration, directoryById, positionByCode }) 
       <Badge variant={registration.status === 'confirmed' ? 'brand' : 'warning'}>
         {registration.status === 'confirmed' ? 'مؤكد' : 'انتظار'}
       </Badge>
+      {showDelete ? (
+        <button
+          type="button"
+          onClick={() => onDelete?.(registration)}
+          disabled={deleting}
+          aria-label={`حذف ${name} من التسجيل`}
+          title={`حذف ${name} من التسجيل`}
+          className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-red-400/25 text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+        >
+          {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -190,6 +209,9 @@ export default function MatchDetails() {
   const [ratingBusyPlayerId, setRatingBusyPlayerId] = useState(null)
   const [ratingError, setRatingError] = useState('')
   const [ratingSuccess, setRatingSuccess] = useState('')
+  const [cancelRegistrationId, setCancelRegistrationId] = useState(null)
+  const [registrationError, setRegistrationError] = useState('')
+  const [registrationSuccess, setRegistrationSuccess] = useState('')
 
   useMatchRealtime(matchId)
 
@@ -448,6 +470,38 @@ export default function MatchDetails() {
     setGenerating(false)
     setGenerateSuccess('تم توليد توزيع الفريقين ونشره للاعبين.')
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleCancelRegistration(registration) {
+    if (!match || !registration) return
+    const player = directoryById.get(registration.player_id)
+    const playerName = player?.full_name ?? 'هذا اللاعب'
+    const wasConfirmed = registration.status === 'confirmed'
+    if (!window.confirm(`سيتم حذف ${playerName} من قائمة المؤكدين.${wasConfirmed ? ' سيتم ترقية أول لاعب مناسب من قائمة الانتظار.' : ''} متابعة؟`)) return
+
+    setCancelRegistrationId(registration.id)
+    setRegistrationError('')
+    setRegistrationSuccess('')
+
+    const { error } = await supabase.rpc('cancel_registration', {
+      p_registration_id: registration.id,
+    })
+    setCancelRegistrationId(null)
+
+    if (error) {
+      setRegistrationError(toArabicError(error, 'تعذر حذف اللاعب من التسجيل.'))
+      return
+    }
+
+    setRegistrationSuccess('تم حذف اللاعب من التسجيل.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
@@ -883,11 +937,23 @@ export default function MatchDetails() {
           ) : registrationsQuery.error ? (
             <Card className="p-5 text-sm text-red-300">{toArabicError(registrationsQuery.error)}</Card>
           ) : confirmedPlayers.length ? (
-            <div className="space-y-2.5">
-              {confirmedPlayers.map((registration) => (
-                <RegistrationPlayerRow key={registration.id} registration={registration} directoryById={directoryById} positionByCode={positionByCode} />
-              ))}
-            </div>
+            <>
+              {registrationError ? <p role="alert" className="mb-3 rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200">{registrationError}</p> : null}
+              {registrationSuccess ? <p role="status" className="mb-3 rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200">{registrationSuccess}</p> : null}
+              <div className="space-y-2.5">
+                {confirmedPlayers.map((registration) => (
+                  <RegistrationPlayerRow
+                    key={registration.id}
+                    registration={registration}
+                    directoryById={directoryById}
+                    positionByCode={positionByCode}
+                    showDelete={isAdmin}
+                    deleting={cancelRegistrationId === registration.id}
+                    onDelete={(target) => void handleCancelRegistration(target)}
+                  />
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState icon={UserCheck} title="لا يوجد لاعبون مؤكدون بعد" description="ستظهر هنا أسماء اللاعبين فور اكتمال تسجيلهم." />
           )}
