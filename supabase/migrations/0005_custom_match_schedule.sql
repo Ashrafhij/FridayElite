@@ -239,7 +239,7 @@ declare
   v_capacity   smallint := 18;
   v_team_size  smallint := 9;
   v_formation  text := '1-3-3-2';
-  v_venue      text := 'ملعب الحي — العشب الصناعي';
+  v_venue      text := 'ملعب وحيد — العشب الصناعي';
   v_address    text;
   v_today      date;
   v_dow        integer;
@@ -268,7 +268,7 @@ begin
    order by m.kickoff_at desc
    limit 1;
 
-  v_venue := coalesce(nullif(btrim(v_venue), ''), 'ملعب الحي — العشب الصناعي');
+  v_venue := coalesce(nullif(btrim(v_venue), ''), 'ملعب وحيد — العشب الصناعي');
 
   v_today := (now() at time zone v_tz)::date;
   v_dow := extract(isodow from v_today)::integer;

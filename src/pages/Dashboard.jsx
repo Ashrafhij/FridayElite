@@ -96,7 +96,7 @@ export default function Dashboard() {
             </span>
             <span className="inline-flex items-center gap-2">
               <MapPin className="size-4 text-brand-400/80" />
-              {activeMatch?.venue ?? 'ملعب الحي — العشب الصناعي'}
+              {activeMatch?.venue ?? 'ملعب وحيد — العشب الصناعي'}
             </span>
           </div>
 

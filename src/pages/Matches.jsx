@@ -24,7 +24,7 @@ const rhythm = [
   { label: 'فتح التسجيل', value: 'كل خميس — ١٠:٠٠ صباحًا', icon: CalendarDays },
   { label: 'إغلاق التسجيل', value: 'كل جمعة — ٢٠:٠٠ مساءً', icon: CheckCircle2 },
   { label: 'عدد المقاعد', value: '١٨ لاعبًا مؤكدًا', icon: Users },
-  { label: 'الملعب', value: 'ملعب الحي — العشب الصناعي', icon: MapPin },
+  { label: 'الملعب', value: 'ملعب وحيد — العشب الصناعي', icon: MapPin },
 ]
 
 const STATUS_LABELS = {
