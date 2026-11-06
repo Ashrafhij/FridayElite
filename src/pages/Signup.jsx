@@ -139,14 +139,6 @@ export default function Signup() {
               aria-describedby="signup-phone-hint"
             />
           </div>
-          <p id="signup-phone-hint" className="mt-2 text-[11px] leading-5 text-white/35">
-            {normalizedPhone
-              ? `سيُحفظ الرقم بصيغة E.164: ${formatPhoneForDisplay(normalizedPhone)}`
-              : 'الرقم الإسرائيلي المحلي يُحوَّل تلقائيًا إلى +972. الأرقام الدولية تُدخل مع رمز الدولة.'}
-          </p>
-          <p className="mt-1 text-[11px] leading-5 text-amber-300/70">
-            رقم الهاتف ليس إثباتًا لملكيته. تتحقق الإدارة من الرقم خارجيًا قبل الموافقة.
-          </p>
         </div>
 
         <div>
@@ -217,10 +209,6 @@ export default function Signup() {
           {submitting ? 'جارٍ إنشاء الحساب…' : 'إنشاء الحساب'}
         </button>
 
-        <p className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-[11px] leading-6 text-white/35">
-          لا نطلب بريدًا إلكترونيًا. لا يتم تخزين كلمة المرور في جداول التطبيق؛ تتم إدارتها بواسطة
-          Supabase Auth فقط.
-        </p>
       </form>
     </AuthLayout>
   )

@@ -159,10 +159,6 @@ export default function Login() {
           {submitting ? 'جارٍ تسجيل الدخول…' : 'دخول'}
         </button>
 
-        <p className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-[11px] leading-6 text-white/35">
-          لا توجد حاليًا إعادة تعيين ذاتية لكلمة المرور دون قناة تحقق (رسالة نصية أو بريد). إذا
-          نسيت كلمة المرور، تواصل مع إدارة المجموعة.
-        </p>
       </form>
     </AuthLayout>
   )

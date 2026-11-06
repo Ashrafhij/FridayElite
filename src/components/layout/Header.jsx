@@ -61,10 +61,9 @@ export default function Header() {
   return (
     <header className="safe-top sticky top-0 z-40 border-b border-white/5 bg-pitch-950/90 backdrop-blur-md sm:bg-pitch-950/75 sm:backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <Link
-          to="/"
-          className="flex min-h-11 shrink-0 items-center gap-2.5"
-          aria-label="فرايدي إيليت — الرئيسية"
+        <div
+          className="flex min-h-11 shrink-0 select-none items-center gap-2.5"
+          aria-label="فرايدي إيليت"
         >
           <BrandMark />
           <span className="flex flex-col leading-none">
@@ -75,7 +74,7 @@ export default function Header() {
               Friday Elite
             </span>
           </span>
-        </Link>
+        </div>
 
         <nav className="ms-auto hidden items-center gap-1 md:flex" aria-label="التنقل الرئيسي">
           {navItems.map(({ to, label, end }) => (
