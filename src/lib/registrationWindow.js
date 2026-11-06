@@ -114,6 +114,9 @@ export function getRegistrationWindow(now = new Date()) {
 }
 
 export function formatRegistrationDateTime(date) {
+  const normalized = date instanceof Date ? date : new Date(date)
+  if (!date || Number.isNaN(normalized.getTime())) return '—'
+
   return new Intl.DateTimeFormat('ar', {
     weekday: 'long',
     day: 'numeric',
@@ -121,5 +124,5 @@ export function formatRegistrationDateTime(date) {
     hour: 'numeric',
     minute: '2-digit',
     timeZone: REGISTRATION_TIME_ZONE,
-  }).format(date)
+  }).format(normalized)
 }
