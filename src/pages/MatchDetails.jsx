@@ -414,13 +414,13 @@ export default function MatchDetails() {
   const waitlistedCount = statsQuery.data?.waitlisted_count ?? waitlistedPlayers.length
   const totalRegistrationCount =
     statsQuery.data?.total_registration_count ?? registrations.length
+  const match = matchQuery.data
   const result = resultQuery.data ?? null
   const matchScorers = scorersQuery.data ?? []
   const myRatingsByPlayer = new Map((myRatingsQuery.data ?? []).map((item) => [item.rated_player_id, item.rating]))
   const ratingStatsByPlayer = new Map((ratingStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
   const canRate = Boolean(match?.status === 'completed' && currentUserRegistration)
-  const match = matchQuery.data
   const teams = teamsQuery.data ?? []
   const teamById = new Map(teams.map((team) => [team.id, team]))
   const assignedPlayerOptions = assignments.map((assignment) => ({
