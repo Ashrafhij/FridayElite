@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './context/AuthContext'
 import App from './App'
@@ -16,20 +16,17 @@ const queryClient = new QueryClient({
   },
 })
 
-// GitHub Pages serves the app from a sub-path (e.g. /FridayElite/).
-// The router must use the same base, otherwise routes like
-// /FridayElite/login are treated as unknown and render the 404 page.
-const buildBase = import.meta.env.BASE_URL
-const routerBasename = buildBase === '/' ? undefined : buildBase.replace(/\/$/, '')
-
+// GitHub Pages is a static host with no rewrite rules, so deep links such as
+// /FridayElite/login would return a real HTTP 404 on reload. HashRouter keeps
+// all routes after the "#", so every reload is served by index.html normally.
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={routerBasename}>
+      <HashRouter>
         <AuthProvider>
           <App />
         </AuthProvider>
-      </BrowserRouter>
+      </HashRouter>
     </QueryClientProvider>
   </StrictMode>
 )
