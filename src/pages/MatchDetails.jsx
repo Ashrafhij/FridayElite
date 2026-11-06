@@ -18,6 +18,7 @@ import {
   Trophy,
   Users,
   UserCheck,
+  UserPlus,
   UserRound,
   XCircle,
 } from 'lucide-react'
