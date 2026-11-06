@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
   BadgeCheck,
+  Camera,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -11,6 +12,7 @@ import {
   Phone,
   Save,
   ShieldCheck,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react'
@@ -20,6 +22,7 @@ import Card from '../components/ui/Card'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { toArabicError } from '../lib/errorMessages'
+import { prepareAvatar } from '../lib/images'
 import { formatPhoneForDisplay } from '../lib/phone'
 
 const inputClass =
@@ -54,13 +57,26 @@ export default function Profile() {
   const [savingPositions, setSavingPositions] = useState(false)
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' })
   const [positionsMessage, setPositionsMessage] = useState({ type: '', text: '' })
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [avatarBroken, setAvatarBroken] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarMessage, setAvatarMessage] = useState({ type: '', text: '' })
+  const avatarInputRef = useRef(null)
 
   useEffect(() => {
     if (!profile) return
     setFullName(profile.full_name ?? '')
     setPreferredFoot(profile.preferred_foot ?? '')
     setJerseyNumber(profile.jersey_number == null ? '' : String(profile.jersey_number))
-  }, [profile?.id, profile?.full_name, profile?.preferred_foot, profile?.jersey_number])
+    setAvatarUrl(profile.avatar_url ?? '')
+    setAvatarBroken(false)
+  }, [
+    profile?.id,
+    profile?.full_name,
+    profile?.preferred_foot,
+    profile?.jersey_number,
+    profile?.avatar_url,
+  ])
 
   const {
     data: positions = [],
@@ -184,7 +200,7 @@ export default function Profile() {
     try {
       const { error } = await supabase.rpc('update_my_profile', {
         p_full_name: name,
-        p_avatar_url: profile?.avatar_url ?? null,
+        p_avatar_url: avatarUrl || null,
         p_preferred_foot: preferredFoot || null,
         p_jersey_number: jersey,
       })
@@ -197,6 +213,80 @@ export default function Profile() {
       setProfileMessage({ type: 'error', text: toArabicError(saveError) })
     } finally {
       setSavingProfile(false)
+    }
+  }
+
+  async function handleAvatarChange(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !profile) return
+
+    setAvatarMessage({ type: '', text: '' })
+    setUploadingAvatar(true)
+
+    try {
+      const blob = await prepareAvatar(file)
+      const path = `${profile.id}/avatar.jpg`
+
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, {
+        upsert: true,
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+      })
+
+      if (uploadError) throw uploadError
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('avatars').getPublicUrl(path)
+
+      const nextAvatarUrl = `${publicUrl}?v=${Date.now()}`
+
+      const { error: saveError } = await supabase.rpc('update_my_profile', {
+        p_full_name: profile.full_name,
+        p_avatar_url: nextAvatarUrl,
+        p_preferred_foot: profile.preferred_foot,
+        p_jersey_number: profile.jersey_number,
+      })
+
+      if (saveError) throw saveError
+
+      setAvatarUrl(nextAvatarUrl)
+      setAvatarBroken(false)
+      await refreshProfile()
+      setAvatarMessage({ type: 'success', text: 'تم تحديث الصورة الشخصية.' })
+    } catch (uploadError) {
+      setAvatarMessage({ type: 'error', text: toArabicError(uploadError) })
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (!profile) return
+
+    setAvatarMessage({ type: '', text: '' })
+    setUploadingAvatar(true)
+
+    try {
+      const { error } = await supabase.rpc('update_my_profile', {
+        p_full_name: profile.full_name,
+        p_avatar_url: null,
+        p_preferred_foot: profile.preferred_foot,
+        p_jersey_number: profile.jersey_number,
+      })
+
+      if (error) throw error
+
+      await supabase.storage.from('avatars').remove([`${profile.id}/avatar.jpg`])
+      setAvatarUrl('')
+      setAvatarBroken(false)
+      await refreshProfile()
+      setAvatarMessage({ type: 'success', text: 'تمت إزالة الصورة الشخصية.' })
+    } catch (removeError) {
+      setAvatarMessage({ type: 'error', text: toArabicError(removeError) })
+    } finally {
+      setUploadingAvatar(false)
     }
   }
 
@@ -271,9 +361,76 @@ export default function Profile() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="p-6 lg:col-span-1">
           <div className="flex flex-col items-center text-center">
-            <span className="grid size-24 place-items-center rounded-full border border-brand-400/20 bg-brand-400/10 text-3xl font-black text-brand-300">
-              {profile.full_name.trim().charAt(0) || '؟'}
-            </span>
+            <div className="relative size-24">
+              <span className="grid size-24 place-items-center rounded-full border border-brand-400/20 bg-brand-400/10 text-3xl font-black text-brand-300">
+                {profile.full_name.trim().charAt(0) || '؟'}
+              </span>
+
+              {avatarUrl && !avatarBroken ? (
+                <img
+                  src={avatarUrl}
+                  alt={`صورة ${profile.full_name}`}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 size-24 rounded-full border border-brand-400/20 object-cover"
+                  onError={() => setAvatarBroken(true)}
+                />
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-1 -end-1 grid size-8 place-items-center rounded-full border-2 border-pitch-950 bg-brand-400 text-pitch-950 shadow-lg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="تغيير صورة اللاعب"
+                title="تغيير الصورة"
+              >
+                {uploadingAvatar ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Camera className="size-4" />
+                )}
+              </button>
+
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleAvatarChange}
+                disabled={uploadingAvatar}
+              />
+            </div>
+
+            {avatarUrl ? (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                disabled={uploadingAvatar}
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-red-300/80 transition-colors hover:text-red-200 disabled:opacity-50"
+              >
+                <Trash2 className="size-3" />
+                إزالة الصورة
+              </button>
+            ) : (
+              <p className="mt-2 text-[11px] text-white/30">أضف صورة شخصية (اختياري)</p>
+            )}
+
+            <p className="mt-1 text-[10px] leading-4 text-white/25">
+              JPG أو PNG أو WebP — حد أقصى 5 ميجابايت
+            </p>
+
+            {avatarMessage.text ? (
+              <p
+                role={avatarMessage.type === 'error' ? 'alert' : 'status'}
+                className={`mt-2 text-[11px] leading-5 ${
+                  avatarMessage.type === 'error' ? 'text-red-300' : 'text-brand-300'
+                }`}
+              >
+                {avatarMessage.text}
+              </p>
+            ) : null}
+
             <h2 className="mt-4 text-lg font-extrabold text-sand-100">{profile.full_name}</h2>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-white/50" dir="ltr">
               <Phone className="size-3.5" />

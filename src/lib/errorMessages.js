@@ -8,6 +8,17 @@ const ERROR_MESSAGES = [
   [/RATE_LIMITED/, 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.'],
   [/INVALID_INPUT|METHOD_NOT_ALLOWED/, 'تعذر إكمال العملية. حاول مرة أخرى.'],
   [/SERVER_ERROR/, 'تعذر إكمال العملية. حاول مرة أخرى.'],
+  [/INVALID_AVATAR/, 'رابط الصورة غير صالح. أعد رفع الصورة الشخصية.'],
+  [/INVALID_IMAGE_TYPE/, 'اختر صورة بصيغة JPG أو PNG أو WebP.'],
+  [
+    /IMAGE_TOO_LARGE|object exceeded the maximum allowed size|payload too large/i,
+    'حجم الصورة كبير. الحد الأقصى 5 ميجابايت.',
+  ],
+  [/IMAGE_PROCESSING_FAILED|IMAGE_REQUIRED/, 'تعذر معالجة الصورة. جرّب صورة أخرى.'],
+  [
+    /bucket not found|bucket.*not found/i,
+    'مساحة الصور غير مهيأة. طبّق تحديث قاعدة البيانات 0003 أولًا.',
+  ],
 
   // The function is not deployed / the project URL is wrong.
   [

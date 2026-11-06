@@ -74,7 +74,7 @@ export default function Admin() {
       const { data, error: queryError } = await supabase
         .from('profiles')
         .select(
-          'id, full_name, phone, role, status, rejection_reason, created_at, approved_at, jersey_number'
+          'id, full_name, phone, role, status, rejection_reason, created_at, approved_at, jersey_number, avatar_url'
         )
         .order('created_at', { ascending: false })
 
@@ -259,6 +259,21 @@ export default function Admin() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-brand-400/10 text-[11px] font-black text-brand-300">
+                          {player.full_name?.trim()?.charAt(0) || '؟'}
+                          {player.avatar_url ? (
+                            <img
+                              src={player.avatar_url}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="absolute inset-0 size-8 object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : null}
+                        </span>
                         <h3 className="truncate text-sm font-extrabold text-sand-100">
                           {player.full_name}
                         </h3>
@@ -336,6 +351,21 @@ export default function Admin() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-brand-400/10 text-[11px] font-black text-brand-300">
+                          {player.full_name?.trim()?.charAt(0) || '؟'}
+                          {player.avatar_url ? (
+                            <img
+                              src={player.avatar_url}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="absolute inset-0 size-8 object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : null}
+                        </span>
                         <h3 className="truncate text-sm font-extrabold text-sand-100">
                           {player.full_name}
                         </h3>

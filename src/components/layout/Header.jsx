@@ -66,8 +66,20 @@ export default function Header() {
               className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pe-3 ps-1 transition-colors hover:border-brand-400/40"
               aria-label="فتح حسابي"
             >
-              <span className="grid size-8 place-items-center rounded-full bg-brand-400/15 text-sm font-black text-brand-300">
+              <span className="relative grid size-8 place-items-center overflow-hidden rounded-full bg-brand-400/15 text-sm font-black text-brand-300">
                 {initial}
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 size-8 object-cover"
+                    onError={(event) => {
+                      event.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : null}
               </span>
               <span className="hidden max-w-32 truncate text-xs font-bold text-white/65 sm:block">
                 {profile.full_name}
