@@ -8,14 +8,21 @@ import { useScheduleRealtime } from './useRealtimeMatches'
 const MATCH_COLUMNS =
   'id,kickoff_at,registration_open_at,registration_close_at,local_date,venue,address,notes,capacity,team_size,status,registration_locked'
 
+let lastEnsureAt = 0
+
 async function fetchSchedule() {
   // Idempotent catch-up: if pg_cron is unavailable or has not run yet, opening
   // the page also creates the upcoming Friday fixtures and advances statuses.
-  try {
-    const { error } = await supabase.rpc('ensure_weekly_matches')
-    if (error) console.debug('ensure_weekly_matches unavailable', error)
-  } catch (error) {
-    console.debug('ensure_weekly_matches unavailable', error)
+  // Keep this RPC out of the hot path; refetches happen much more frequently.
+  const now = Date.now()
+  if (!lastEnsureAt || now - lastEnsureAt >= 60_000) {
+    lastEnsureAt = now
+    try {
+      const { error } = await supabase.rpc('ensure_weekly_matches')
+      if (error) console.debug('ensure_weekly_matches unavailable', error)
+    } catch (error) {
+      console.debug('ensure_weekly_matches unavailable', error)
+    }
   }
 
   const { data: matches, error } = await supabase
@@ -60,8 +67,8 @@ export function useMatches() {
   const scheduleQuery = useQuery({
     queryKey: ['matches', 'schedule'],
     queryFn: fetchSchedule,
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
   })
 
   const matches = scheduleQuery.data?.matches ?? []
@@ -101,8 +108,8 @@ export function useMatches() {
       if (error) throw error
       return data ?? null
     },
-    staleTime: 10_000,
-    refetchInterval: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
   })
 
   const refresh = useCallback(async () => {
@@ -118,18 +125,23 @@ export function useMatches() {
     setActionError('')
     setActionSuccess('')
 
-    const { error } = await supabase.rpc('register_for_match', { p_match_id: activeMatch.id })
+    const { data: registration, error } = await supabase.rpc('register_for_match', {
+      p_match_id: activeMatch.id,
+    })
     if (error) {
       setActionError(toArabicError(error))
       setActionBusy(false)
       return false
     }
 
+    if (registration) {
+      queryClient.setQueryData(['my-registration', activeMatch.id, profile?.id], registration)
+    }
     setActionSuccess('تم تسجيلك في المباراة.')
     setActionBusy(false)
     await refresh()
     return true
-  }, [activeMatch, refresh])
+  }, [activeMatch, profile?.id, queryClient, refresh])
 
   const cancelMyRegistration = useCallback(async () => {
     const registrationId = myRegistrationQuery.data?.id
@@ -147,11 +159,14 @@ export function useMatches() {
       return false
     }
 
+    if (activeMatch?.id) {
+      queryClient.setQueryData(['my-registration', activeMatch.id, profile?.id], null)
+    }
     setActionSuccess('تم إلغاء تسجيلك في المباراة.')
     setActionBusy(false)
     await refresh()
     return true
-  }, [myRegistrationQuery.data?.id, refresh])
+  }, [activeMatch?.id, myRegistrationQuery.data?.id, profile?.id, queryClient, refresh])
 
   return {
     now,

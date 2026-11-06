@@ -244,8 +244,8 @@ export default function MatchDetails() {
       if (error) throw error
       return data ?? []
     },
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
   })
 
   const statsQuery = useQuery({
@@ -263,8 +263,8 @@ export default function MatchDetails() {
       }
       return data ?? null
     },
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
   })
 
   const teamsQuery = useQuery({
