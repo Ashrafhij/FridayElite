@@ -210,21 +210,57 @@ Deno.serve(async (req) => {
 
     if (lookupError) throw lookupError
 
+    let internalEmail: string | null = mapping?.internal_email ?? null
+    let legacyUserId: string | null = null
+
+    if (!internalEmail) {
+      // Accounts provisioned before the mapping table: resolve the profile by
+      // phone, then read that Auth user's existing email.
+      const { data: profile, error: profileError } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('phone', phone)
+        .maybeSingle()
+
+      if (profileError) throw profileError
+
+      if (profile?.id) {
+        const { data: legacy, error: legacyError } = await admin.auth.admin.getUserById(profile.id)
+        if (legacyError) {
+          console.error('loginPhone: legacy user lookup failed', messageOf(legacyError))
+        } else if (legacy?.user?.email) {
+          internalEmail = legacy.user.email
+          legacyUserId = legacy.user.id
+        }
+      }
+    }
+
     // Unknown phone and wrong password intentionally produce the same answer,
     // so an attacker cannot enumerate registered phone numbers. The short
     // delay narrows the timing gap against a real password hash check.
-    if (!mapping?.internal_email) {
+    if (!internalEmail) {
       await new Promise((resolve) => setTimeout(resolve, 350))
       return json(req, { success: false, error: 'INVALID_CREDENTIALS' }, 401)
     }
 
     const { data: signIn, error: signInError } = await admin.auth.signInWithPassword({
-      email: mapping.internal_email,
+      email: internalEmail,
       password,
     })
 
     if (signInError || !signIn?.session) {
       return json(req, { success: false, error: 'INVALID_CREDENTIALS' }, 401)
+    }
+
+    // Persist the mapping for legacy accounts so future logins skip the lookup.
+    if (legacyUserId) {
+      const { error: mappingError } = await admin.from('phone_email_map').upsert(
+        { id: legacyUserId, phone, internal_email: internalEmail },
+        { onConflict: 'id' },
+      )
+      if (mappingError) {
+        console.error('loginPhone: legacy mapping upsert failed', messageOf(mappingError))
+      }
     }
 
     return json(req, {

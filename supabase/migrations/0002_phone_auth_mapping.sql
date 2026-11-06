@@ -14,6 +14,8 @@
 -- migration history is in sync). Do not edit 0001.
 -- ============================================================================
 
+begin;
+
 -- ----------------------------------------------------------------------------
 -- 1. Role values
 -- ----------------------------------------------------------------------------
@@ -60,6 +62,17 @@ grant select, insert, update, delete on table public.phone_email_map to service_
 
 comment on table public.phone_email_map is
   'Server-only map from a user-facing E.164 phone number to the internal email used by Supabase Auth. Never exposed to clients.';
+
+-- Optional: adopt accounts that already exist from the old phone-auth or were
+-- created manually with both a phone and an email. Uncomment and run once.
+-- insert into public.phone_email_map (id, phone, internal_email)
+-- select u.id,
+--        '+' || regexp_replace(u.phone, '[^0-9]', '', 'g'),
+--        u.email
+-- from auth.users u
+-- where u.phone ~ '^[1-9][0-9]{6,14}$'
+--   and u.email is not null
+-- on conflict do nothing;
 
 -- ----------------------------------------------------------------------------
 -- 3. Profile provisioning for email-backed Auth users
@@ -148,6 +161,15 @@ begin
   end if;
 
   if v_count = 0 then
+    -- Last resort: any profile whose phone matches (for accounts provisioned
+    -- before the mapping table existed).
+    select count(*), min(p.id)
+    into v_count, v_id
+    from public.profiles p
+    where regexp_replace(coalesce(p.phone, ''), '[^0-9]', '', 'g') = v_digits;
+  end if;
+
+  if v_count = 0 then
     raise exception 'USER_NOT_FOUND';
   end if;
   if v_count > 1 then
@@ -187,3 +209,5 @@ revoke all on function public.bootstrap_first_admin(text) from public;
 revoke all on function public.bootstrap_first_admin(text) from anon;
 revoke all on function public.bootstrap_first_admin(text) from authenticated;
 grant execute on function public.bootstrap_first_admin(text) to service_role;
+
+commit;
