@@ -1030,29 +1030,6 @@ export default function MatchDetails() {
         )}
       </section>
 
-      <section className="mt-8" aria-label="معلومات إضافية">
-        <Card className="p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-            <CalendarDays className="size-5 text-brand-300" />
-            البيانات الكاملة
-          </h2>
-          <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoItem icon={CalendarDays} label="تاريخ الانطلاق" value={formatDate(match.kickoff_at)} />
-            <InfoItem icon={Clock} label="وقت الانطلاق" value={formatTime(match.kickoff_at)} />
-            <InfoItem icon={CalendarDays} label="فتح التسجيل" value={formatDateTime(match.registration_open_at)} />
-            <InfoItem icon={Clock} label="إغلاق التسجيل" value={formatDateTime(match.registration_close_at)} />
-            <InfoItem icon={MapPin} label="الملعب" value={match.venue} />
-            <InfoItem icon={MapPin} label="العنوان" value={match.address ?? '—'} />
-            <InfoItem icon={Users} label="السعة" value={`${match.capacity} لاعبًا`} />
-            <InfoItem icon={Users} label="حجم الفريق" value={`${match.team_size} لاعبين`} />
-            <InfoItem icon={UserRound} label="التشكيلة" value={match.formation} dir="ltr" />
-            <InfoItem icon={Lock} label="قفل التسجيل" value={match.registration_locked ? 'مقفل' : 'غير مقفل'} />
-            <InfoItem icon={CheckCircle2} label="تاريخ إنشاء الفرق" value={match.teams_generated_at ? formatDateTime(match.teams_generated_at) : '—'} />
-            <InfoItem icon={History} label="حالة الفرق الحالية" value={match.teams_stale ? 'تحتاج إعادة توزيع' : match.teams_generated_at ? 'منشورة' : 'غير منشورة'} />
-          </dl>
-          {match.notes ? <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-white/55">{match.notes}</p> : null}
-        </Card>
-      </section>
     </div>
   )
 }

@@ -7,7 +7,6 @@ import {
   ListOrdered,
   Lock,
   MapPin,
-  Shuffle,
   Sparkles,
   UserCheck,
   Users,
@@ -20,26 +19,8 @@ import { useMatches } from '../hooks/useMatches'
 import { useRegistrationWindow } from '../hooks/useRegistrationWindow'
 import { formatRegistrationDateTime } from '../lib/registrationWindow'
 
-const steps = [
-  {
-    icon: CalendarDays,
-    title: 'فترة التسجيل الأسبوعية',
-    text: 'يُفتح التسجيل الخميس الساعة ١٠:٠٠ صباحًا ويغلق الجمعة الساعة ٢٠:٠٠ مساءً، بتوقيت محلي.',
-  },
-  {
-    icon: UserCheck,
-    title: 'تأكيد أو انتظار',
-    text: 'أول ١٨ لاعبًا يُؤكَّدون تلقائيًا، والباقي يدخل قائمة الانتظار بالترتيب.',
-  },
-  {
-    icon: Shuffle,
-    title: 'توزيع متوازن',
-    text: 'بعد اكتمال العدد، توزّع الإدارة اللاعبين على فريقين متوازنين حسب المراكز.',
-  },
-]
-
 export default function Dashboard() {
-  const { profile, isAdmin } = useAuth()
+  const { profile } = useAuth()
   const registrationWindow = useRegistrationWindow()
   const registrationOpen = registrationWindow.isOpen
   const { activeMatch, statsByMatchId } = useMatches()
@@ -146,45 +127,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* How it works */}
-        <Card className="p-6 lg:col-span-3 lg:p-7">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-extrabold text-sand-100">كيف تعمل المجموعة</h2>
-              <p className="mt-1 text-sm text-white/45">ثلاث خطوات ثابتة كل أسبوع</p>
-            </div>
-            <span className="grid size-10 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
-              <CalendarDays className="size-5" />
-            </span>
-          </div>
-
-          <ol className="mt-6 space-y-5">
-            {steps.map(({ icon: Icon, title, text }, index) => (
-              <li key={title} className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-400/20 bg-brand-400/10 text-xs font-black text-brand-300">
-                    {index + 1}
-                  </span>
-                  {index < steps.length - 1 ? (
-                    <span className="mt-2 h-full w-px bg-white/10" aria-hidden="true" />
-                  ) : null}
-                </div>
-                <div className="pb-1">
-                  <p className="flex items-center gap-2 text-sm font-bold text-sand-100">
-                    <Icon className="size-4 text-brand-400/70" />
-                    {title}
-                  </p>
-                  <p className="mt-1 text-[13px] leading-6 text-white/50">{text}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </Card>
-
-        {/* Account status / notice */}
-        <div className="space-y-6 lg:col-span-2">
-          <Card className="border-brand-400/15 bg-brand-400/[0.035] p-6">
+      <Card className="border-brand-400/15 bg-brand-400/[0.035] p-6">
             <span className="grid size-10 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
               <CheckCircle2 className="size-5" />
             </span>
@@ -201,37 +144,6 @@ export default function Dashboard() {
               <ArrowLeft className="size-3.5" />
             </Link>
           </Card>
-
-          <Card className="p-6">
-            <h2 className="text-base font-extrabold text-sand-100">روابط سريعة</h2>
-            <div className="mt-4 space-y-2">
-              <Link
-                to="/matches"
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/70 transition-colors hover:border-brand-400/30 hover:text-white"
-              >
-                جدول المباريات
-                <ArrowLeft className="size-4 text-brand-400/70" />
-              </Link>
-              <Link
-                to="/profile"
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/70 transition-colors hover:border-brand-400/30 hover:text-white"
-              >
-                المراكز المفضلة
-                <ArrowLeft className="size-4 text-brand-400/70" />
-              </Link>
-              {isAdmin ? (
-                <Link
-                  to="/admin"
-                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/70 transition-colors hover:border-brand-400/30 hover:text-white"
-                >
-                  لوحة الإدارة
-                  <ArrowLeft className="size-4 text-brand-400/70" />
-                </Link>
-              ) : null}
-            </div>
-          </Card>
-        </div>
-      </div>
     </div>
   )
 }
