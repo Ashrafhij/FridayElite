@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -1583,52 +1583,56 @@ export default function MatchDetails() {
                 <Trophy className="size-4 text-brand-300" />
                 نتيجة المباراة
               </p>
-              <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
                 {['A', 'B'].map((side) => {
                   const team = teams.find((item) => item.side === side)
                   const score = side === 'A' ? result.team_a_score : result.team_b_score
                   const otherScore = side === 'A' ? result.team_b_score : result.team_a_score
                   const isWinner = score > otherScore
                   return (
-                    <div key={side} className={`min-w-0 ${side === 'A' ? 'text-end' : 'text-start'}`}>
-                      <div className={`flex items-center gap-2 ${side === 'A' ? 'flex-row-reverse' : ''}`}>
-                        <span className="size-3.5 shrink-0 rounded-full border border-white/25" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
-                        <p className="truncate text-xs font-black text-sand-100 sm:text-sm">
-                          {team?.name_ar ?? (side === 'A' ? 'الفريق أ' : 'الفريق ب')}
+                    <Fragment key={side}>
+                      <div className={`min-w-0 ${side === 'A' ? 'text-end' : 'text-start'}`}>
+                        <div className={`flex items-center gap-2 ${side === 'A' ? 'flex-row-reverse' : ''}`}>
+                          <span className="size-3.5 shrink-0 rounded-full border border-white/25" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
+                          <p className="truncate text-xs font-black text-sand-100 sm:text-sm">
+                            {team?.name_ar ?? (side === 'A' ? 'الفريق أ' : 'الفريق ب')}
+                          </p>
+                        </div>
+                        <p
+                          className="mt-1 text-5xl font-black tabular-nums sm:text-6xl"
+                          style={isWinner ? { color: team?.color ?? '#d2ff4d' } : undefined}
+                        >
+                          {score}
                         </p>
                       </div>
-                      <p
-                        className="mt-1 text-5xl font-black tabular-nums sm:text-6xl"
-                        style={isWinner ? { color: team?.color ?? '#d2ff4d' } : undefined}
-                      >
-                        {score}
-                      </p>
-                    </div>
+                      {side === 'A' ? (
+                        <div className="min-w-16 px-1 text-center">
+                          {(() => {
+                            const winnerTeam =
+                              result.team_a_score > result.team_b_score
+                                ? teams.find((item) => item.side === 'A')
+                                : result.team_b_score > result.team_a_score
+                                  ? teams.find((item) => item.side === 'B')
+                                  : null
+                            return winnerTeam ? (
+                              <p
+                                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black text-pitch-950"
+                                style={{ backgroundColor: winnerTeam.color ?? '#d2ff4d' }}
+                              >
+                                <Trophy className="size-3.5" />
+                                {winnerTeam.name_ar} الفائز
+                              </p>
+                            ) : (
+                              <p className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/70">
+                                تعادل
+                              </p>
+                            )
+                          })()}
+                        </div>
+                      ) : null}
+                    </Fragment>
                   )
                 })}
-                <div className="min-w-16 self-center px-1 text-center">
-                  {(() => {
-                    const winnerTeam =
-                      result.team_a_score > result.team_b_score
-                        ? teams.find((item) => item.side === 'A')
-                        : result.team_b_score > result.team_a_score
-                          ? teams.find((item) => item.side === 'B')
-                          : null
-                    return winnerTeam ? (
-                      <p
-                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black text-pitch-950"
-                        style={{ backgroundColor: winnerTeam.color ?? '#d2ff4d' }}
-                      >
-                        <Trophy className="size-3.5" />
-                        {winnerTeam.name_ar} الفائز
-                      </p>
-                    ) : (
-                      <p className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/70">
-                        تعادل
-                      </p>
-                    )
-                  })()}
-                </div>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
