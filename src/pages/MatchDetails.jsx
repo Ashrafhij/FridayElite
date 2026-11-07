@@ -597,6 +597,27 @@ export default function MatchDetails() {
     refetchInterval: 30_000,
   })
 
+  const allPlayersQuery = useQuery({
+    queryKey: ['all-players-directory'],
+    enabled: Boolean(isAdmin && ratingTarget),
+    queryFn: async () => {
+      const selectAll = async (columns, filterExternal) => {
+        let query = supabase.from('player_directory').select(columns)
+        if (filterExternal) query = query.eq('is_external', false)
+        const { data, error } = await query.order('full_name', { ascending: true })
+        if (error) throw error
+        return data ?? []
+      }
+      try {
+        return await selectAll('id,full_name,avatar_url,jersey_number,is_external', true)
+      } catch {
+        // Migration 0014 not applied yet: fall back to the pre-0014 columns.
+        return selectAll('id,full_name,avatar_url,jersey_number', false)
+      }
+    },
+    staleTime: 60_000,
+  })
+
   const directoryById = useMemo(
     () => new Map((directoryQuery.data ?? []).map((player) => [player.id, player])),
     [directoryQuery.data],
@@ -633,6 +654,7 @@ export default function MatchDetails() {
   const teamById = new Map(teams.map((team) => [team.id, team]))
   const scorerByPlayer = new Map(matchScorers.map((scorer) => [scorer.player_id, scorer]))
   const assignmentByPlayerId = new Map(assignments.map((assignment) => [assignment.player_id, assignment]))
+  const allPlayersById = new Map((allPlayersQuery.data ?? []).map((player) => [player.id, player]))
   const assignedPlayerOptions = assignments.map((assignment) => ({
     assignment,
     player: directoryById.get(assignment.player_id),
@@ -827,14 +849,21 @@ export default function MatchDetails() {
     if (!match || !ratingTarget || !modalSwapTarget || modalSwapBusy) return
     const currentId = ratingTarget.playerId
     const targetId = modalSwapTarget
+    const targetAssigned = assignmentByPlayerId.has(targetId)
     setModalSwapBusy(true)
     setModalSwapError('')
 
-    const { error } = await supabase.rpc('swap_team_players', {
-      p_match_id: match.id,
-      p_player_a: currentId,
-      p_player_b: targetId,
-    })
+    const { error } = targetAssigned
+      ? await supabase.rpc('swap_team_players', {
+          p_match_id: match.id,
+          p_player_a: currentId,
+          p_player_b: targetId,
+        })
+      : await supabase.rpc('replace_match_player', {
+          p_match_id: match.id,
+          p_out_player_id: currentId,
+          p_in_player_id: targetId,
+        })
     setModalSwapBusy(false)
 
     if (error) {
@@ -842,15 +871,21 @@ export default function MatchDetails() {
       return
     }
 
-    const nameA = directoryById.get(currentId)?.full_name ?? 'لاعب'
-    const nameB = directoryById.get(targetId)?.full_name ?? 'لاعب'
+    const nameA = directoryById.get(currentId)?.full_name ?? allPlayersById.get(currentId)?.full_name ?? 'لاعب'
+    const nameB = directoryById.get(targetId)?.full_name ?? allPlayersById.get(targetId)?.full_name ?? 'لاعب'
     setRatingTarget(null)
-    setPitchNotice({ type: 'ok', text: `تم تبديل ${nameA} و${nameB}.` })
+    setPitchNotice({
+      type: 'ok',
+      text: targetAssigned ? `تم تبديل ${nameA} و${nameB}.` : `تم استبدال ${nameA} بـ ${nameB} في الفريق.`,
+    })
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-player-directory', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['all-players-directory'] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
     ])
   }
@@ -2137,6 +2172,12 @@ export default function MatchDetails() {
                       }))
                     const regular = others.filter((item) => !item.player?.is_external)
                     const guests = others.filter((item) => item.player?.is_external)
+                    const notRegistered = (allPlayersQuery.data ?? []).filter(
+                      (candidate) =>
+                        candidate.id !== ratingTarget.playerId &&
+                        !assignmentByPlayerId.has(candidate.id) &&
+                        !candidate.is_external,
+                    )
                     const renderOption = ({ assignment, player, team, position }) => (
                       <option key={assignment.id} value={assignment.player_id}>
                         {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''} · {position?.name_ar ?? assignment.assigned_position_code}
@@ -2144,8 +2185,19 @@ export default function MatchDetails() {
                     )
                     return (
                       <>
-                        {regular.length ? <optgroup label="لاعبون من الفريق">{regular.map(renderOption)}</optgroup> : null}
+                        {regular.length ? <optgroup label="لاعبون مسجلون في الفرق">{regular.map(renderOption)}</optgroup> : null}
                         {guests.length ? <optgroup label="لاعبون ضيوف (مرة واحدة)">{guests.map(renderOption)}</optgroup> : null}
+                        {allPlayersQuery.isLoading ? <option value="" disabled>جارٍ تحميل اللاعبين…</option> : null}
+                        {notRegistered.length ? (
+                          <optgroup label="لم يسجلوا في هذه المباراة">
+                            {notRegistered.map((candidate) => (
+                              <option key={candidate.id} value={candidate.id}>
+                                {candidate.full_name}
+                                {candidate.jersey_number ? ` — رق ${candidate.jersey_number}` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
                       </>
                     )
                   })()}
@@ -2160,7 +2212,7 @@ export default function MatchDetails() {
                   تنفيذ المبادلة
                 </button>
                 <p className="mt-2 text-[11px] leading-5 text-white/40">
-                  يعمل داخل نفس الفريق وبين الفريقين ومع اللاعبين الضيوف. لا يمكن مبادلة حارس مرمى مع لاعب ميدان.
+                  يعمل داخل نفس الفريق وبين الفريقين ومع اللاعبين الضيوف، أو يستبدل اللاعب بلاعب من الفريق لم يسجل في هذه المباراة. لا يمكن مبادلة حارس مرمى مع لاعب ميدان.
                 </p>
               </form>
             ) : null}

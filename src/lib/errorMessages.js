@@ -31,6 +31,8 @@ const ERROR_MESSAGES = [
   [/SAME_PLAYER/, 'اختر لاعبين مختلفين للمبادلة.'],
   [/ASSIGNMENT_NOT_FOUND/, 'أحد اللاعبين غير موجود في توزيع الفريقين.'],
   [/GK_SWAP_NOT_ALLOWED/, 'لا يمكن تبديل حارس المرمى مع لاعب ميدان.'],
+  [/PLAYER_ALREADY_ASSIGNED/, 'هذا اللاعب موجود في فرق المباراة بالفعل.'],
+  [/PLAYER_NOT_ELIGIBLE/, 'هذا اللاعب غير مؤهل للانضمام إلى فرق المباراة.'],
   [/INVALID_TEAM_COLOR/, 'اختر لونًا صالحًا لكل فريق.'],
   [/TEAMS_NOT_GENERATED/, 'أنشئ توزيع الفريقين أولًا.'],
   [/PLAYER_NOT_ASSIGNED/, 'هذا اللاعب غير موجود في توزيع الفريقين.'],
