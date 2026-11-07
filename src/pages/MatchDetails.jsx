@@ -1611,66 +1611,10 @@ export default function MatchDetails() {
         </Card>
       ) : null}
 
-      <section className="mt-8" aria-label="نتيجة المباراة">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
-              <Trophy className="size-5 text-brand-300" />
-              نتيجة المباراة
-            </h2>
-            <p className="mt-1 text-sm text-white/45">النتيجة النهائية وهدافو المباراة.</p>
-          </div>
-          <Badge variant={result ? 'brand' : 'neutral'}>{result ? 'منشورة' : 'غير منشورة'}</Badge>
-        </div>
-
-        {result ? (
-          <Card className="overflow-hidden p-5 sm:p-6">
-            <div className="grid items-center gap-5 md:grid-cols-[1fr_auto_1fr]">
-              {['A', 'B'].map((side) => {
-                const team = teams.find((item) => item.side === side)
-                const score = side === 'A' ? result.team_a_score : result.team_b_score
-                const teamScorers = matchScorers.filter((scorer) => scorer.team_id === team?.id)
-                return (
-                  <div key={side} className="min-w-0 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="size-3.5 rounded-full" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
-                      <p className="text-sm font-extrabold text-sand-100">{team?.name_ar ?? (side === 'A' ? 'الفريق أ' : 'الفريق ب')}</p>
-                    </div>
-                    <p className="mt-3 text-5xl font-black tabular-nums text-sand-100">{score}</p>
-                    <div className="mt-4 space-y-2">
-                      {teamScorers.length ? (
-                        teamScorers.map((scorer) => {
-                          const player = directoryById.get(scorer.player_id)
-                          return (
-                            <div key={scorer.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2 text-start">
-                              <span className="min-w-0 truncate text-xs font-bold text-white/75">{player?.full_name ?? 'لاعب'}</span>
-                              <span className="shrink-0 text-[11px] font-extrabold text-brand-200">
-                                {[
-                                  scorer.goals ? `${scorer.goals} هدف` : null,
-                                  scorer.assists ? `${scorer.assists} تمريرة` : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(' · ') || 'بدون إحصائيات'}
-                              </span>
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <p className="text-[11px] text-white/35">لا يوجد هدافون مسجلون.</p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            {result.notes ? <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-white/55">{result.notes}</p> : null}
-          </Card>
-        ) : (
-          <EmptyState icon={Trophy} title="لم تُنشر النتيجة بعد" description="ستظهر هنا النتيجة النهائية والهدافون بعد إدخال الإدارة لها." />
-        )}
-
-        {isAdmin ? (
-          <Card className="mt-4 border-brand-400/20 p-5 sm:p-6">
+      {/* Result entry (admin only) — the public result is shown on the pitch above */}
+      {isAdmin ? (
+        <section className="mt-8" aria-label="إدخال نتيجة المباراة">
+          <Card className="border-brand-400/20 p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-sand-100">{result ? 'تعديل نتيجة المباراة' : 'إدخال نتيجة المباراة'}</h3>
@@ -1768,8 +1712,8 @@ export default function MatchDetails() {
               </form>
             ) : null}
           </Card>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       <section ref={pitchRef} className="mt-8 scroll-mt-24" aria-label="الميدان">
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -1847,6 +1791,120 @@ export default function MatchDetails() {
               : match.status !== 'completed'
                 ? 'وصلت إلى صفحة التقييم. سيبدأ التقييم بعد إدخال الإدارة لنتيجة المباراة.'
                 : 'التقييم متاح للاعبين المشاركين في المباراة فقط.'}
+          </div>
+        ) : null}
+
+        {result && teams.length ? (
+          <div className="relative z-10 mb-5 overflow-hidden rounded-3xl border border-white/15 bg-pitch-950/70 shadow-glow">
+            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+              <div
+                className="absolute inset-y-0 start-0 w-1/2"
+                style={{ background: `linear-gradient(120deg, ${teams.find((team) => team.side === 'A')?.color ?? '#d2ff4d'}33, transparent 70%)` }}
+              />
+              <div
+                className="absolute inset-y-0 end-0 w-1/2"
+                style={{ background: `linear-gradient(-120deg, ${teams.find((team) => team.side === 'B')?.color ?? '#f5f3ea'}33, transparent 70%)` }}
+              />
+            </div>
+            <div className="relative p-4 sm:p-6">
+              <p className="mb-4 flex items-center justify-center gap-2 text-xs font-extrabold text-white/60">
+                <Trophy className="size-4 text-brand-300" />
+                نتيجة المباراة
+              </p>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4">
+                {['A', 'B'].map((side) => {
+                  const team = teams.find((item) => item.side === side)
+                  const score = side === 'A' ? result.team_a_score : result.team_b_score
+                  const otherScore = side === 'A' ? result.team_b_score : result.team_a_score
+                  const isWinner = score > otherScore
+                  return (
+                    <div key={side} className={`min-w-0 ${side === 'A' ? 'text-end' : 'text-start'}`}>
+                      <div className={`flex items-center gap-2 ${side === 'A' ? 'flex-row-reverse' : ''}`}>
+                        <span className="size-3.5 shrink-0 rounded-full border border-white/25" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
+                        <p className="truncate text-xs font-black text-sand-100 sm:text-sm">
+                          {team?.name_ar ?? (side === 'A' ? 'الفريق أ' : 'الفريق ب')}
+                        </p>
+                      </div>
+                      <p
+                        className="mt-1 text-5xl font-black tabular-nums sm:text-6xl"
+                        style={isWinner ? { color: team?.color ?? '#d2ff4d' } : undefined}
+                      >
+                        {score}
+                      </p>
+                    </div>
+                  )
+                })}
+                <div className="min-w-16 self-center px-1 text-center">
+                  {(() => {
+                    const winnerTeam =
+                      result.team_a_score > result.team_b_score
+                        ? teams.find((item) => item.side === 'A')
+                        : result.team_b_score > result.team_a_score
+                          ? teams.find((item) => item.side === 'B')
+                          : null
+                    return winnerTeam ? (
+                      <p
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black text-pitch-950"
+                        style={{ backgroundColor: winnerTeam.color ?? '#d2ff4d' }}
+                      >
+                        <Trophy className="size-3.5" />
+                        {winnerTeam.name_ar} الفائز
+                      </p>
+                    ) : (
+                      <p className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/70">
+                        تعادل
+                      </p>
+                    )
+                  })()}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {['A', 'B'].map((side) => {
+                  const team = teams.find((item) => item.side === side)
+                  const teamScorers = matchScorers.filter((scorer) => scorer.team_id === team?.id)
+                  if (!teamScorers.length) return null
+                  return (
+                    <div key={side} className="min-w-0">
+                      <p className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold text-white/50">
+                        <span className="size-2.5 rounded-full" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
+                        {team?.name_ar ?? (side === 'A' ? 'الفريق أ' : 'الفريق ب')}
+                      </p>
+                      <div className="space-y-1.5">
+                        {teamScorers.map((scorer) => {
+                          const player = directoryById.get(scorer.player_id)
+                          return (
+                            <div key={scorer.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                              <span className="min-w-0 truncate text-xs font-bold text-sand-100">{player?.full_name ?? 'لاعب'}</span>
+                              <span className="flex shrink-0 items-center gap-1">
+                                {scorer.goals ? (
+                                  <span title={`${scorer.goals} هدف`} className="flex h-5 items-center gap-0.5 rounded-full bg-white px-1.5 text-[10px] font-black text-pitch-950">
+                                    <Volleyball className="size-2.5" />
+                                    {scorer.goals}
+                                  </span>
+                                ) : null}
+                                {scorer.assists ? (
+                                  <span title={`${scorer.assists} تمريرة`} className="flex h-5 items-center gap-0.5 rounded-full bg-brand-300 px-1.5 text-[10px] font-black text-pitch-950">
+                                    <Footprints className="size-2.5" />
+                                    {scorer.assists}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {result.notes ? (
+                <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center text-xs leading-6 text-white/55">
+                  {result.notes}
+                </p>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
