@@ -676,13 +676,16 @@ export default function MatchDetails() {
   const myRegistration = registrations.find(
     (item) => item.player_id === profile?.id && item.status !== 'cancelled',
   )
+  const ratingWindowOpen = Boolean(
+    match && new Date(match.kickoff_at).getTime() + 48 * 3600_000 > Date.now(),
+  )
+  const canRate = Boolean(match?.status === 'completed' && currentUserRegistration && ratingWindowOpen)
   const registrationOpenForMatch = Boolean(
     match &&
       !['completed', 'cancelled'].includes(match.status) &&
       new Date(match.registration_open_at || 0).getTime() <= Date.now() &&
       Date.now() < new Date(match.registration_close_at || 0).getTime(),
   )
-  const canRate = Boolean(match?.status === 'completed' && currentUserRegistration)
   const teams = teamsQuery.data ?? []
   const teamById = new Map(teams.map((team) => [team.id, team]))
   const scorerByPlayer = new Map(matchScorers.map((scorer) => [scorer.player_id, scorer]))
@@ -1847,7 +1850,9 @@ export default function MatchDetails() {
               ? 'صفحة التقييم: اضغط على أي لاعب على الميدان لتقييمه من 1 إلى 10.'
               : match.status !== 'completed'
                 ? 'وصلت إلى صفحة التقييم. سيبدأ التقييم بعد إدخال الإدارة لنتيجة المباراة.'
-                : 'التقييم متاح للاعبين المشاركين في المباراة فقط.'}
+                : !ratingWindowOpen
+                  ? 'انتهت مهلة التقييم لهذه المباراة (48 ساعة بعد الانطلاق).'
+                  : 'التقييم متاح للاعبين المشاركين في المباراة فقط.'}
           </div>
         ) : null}
 
@@ -2273,7 +2278,9 @@ export default function MatchDetails() {
                   <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-6 text-white/55">
                     {match.status !== 'completed'
                       ? 'التقييم يبدأ بعد نهاية المباراة.'
-                      : 'التقييم للمشاركين المؤكدين فقط.'}
+                      : !ratingWindowOpen
+                        ? 'انتهت مهلة التقييم لهذه المباراة (48 ساعة بعد الانطلاق).'
+                        : 'التقييم للمشاركين المؤكدين فقط.'}
                   </p>
                 ) : null}
               </>
