@@ -357,7 +357,13 @@ export default function Matches() {
               const teamB = matchTeams.find((team) => team.side === 'B')
 
               return (
-                <Card key={match.id} className="overflow-hidden p-0">
+                <Link
+                  key={match.id}
+                  to={result ? `/matches/${match.id}/result` : `/matches/${match.id}`}
+                  className={`block overflow-hidden rounded-[2rem] transition-transform hover:-translate-y-0.5 ${result ? 'hover:ring-2 hover:ring-brand-400/40' : 'hover:ring-2 hover:ring-white/15'}`}
+                  aria-label={`${result ? 'فتح النتيجة والتقييمات' : 'فتح تفاصيل المباراة'} — ${formatMatchDate(match.local_date)}`}
+                >
+                <Card className="h-full p-0">
                   <div className="p-5 pb-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -519,25 +525,21 @@ export default function Matches() {
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.07] px-5 py-3">
-                    <Link
-                      to={`/matches/${match.id}`}
-                      className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
-                    >
-                      فتح تفاصيل المباراة
-                      <ArrowLeft className="size-3.5" />
-                    </Link>
+                  <p className="flex items-center justify-center gap-1.5 border-t border-white/[0.07] px-5 py-3 text-center text-xs font-bold text-brand-300">
                     {result ? (
-                      <Link
-                        to={`/matches/${match.id}/result`}
-                        className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-white/55 transition-colors hover:text-white"
-                      >
+                      <>
                         <Trophy className="size-3.5" />
                         النتيجة والتقييمات
-                      </Link>
-                    ) : null}
-                  </div>
+                      </>
+                    ) : (
+                      <>
+                        فتح تفاصيل المباراة
+                        <ArrowLeft className="size-3.5" />
+                      </>
+                    )}
+                  </p>
                 </Card>
+                </Link>
               )
             })}
           </div>
