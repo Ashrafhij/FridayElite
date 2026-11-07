@@ -1349,6 +1349,8 @@ export default function MatchDetails() {
     }
 
     setRatingSuccess('تم حفظ تقييمك.')
+    // Refresh the popup snapshot so the number buttons highlight right away.
+    setRatingTarget((current) => (current ? { ...current, myRating: rating } : current))
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['my-match-ratings', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-rating-stats', matchId] }),
