@@ -1,21 +1,26 @@
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
   CalendarDays,
   Clock,
+  Footprints,
   History,
   Loader2,
   Lock,
   MapPin,
   RotateCcw,
+  Trophy,
   UserMinus,
   UserPlus,
+  Volleyball,
 } from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
 import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
 import EmptyState from '../components/ui/EmptyState'
 import { useMatches } from '../hooks/useMatches'
+import { supabase } from '../lib/supabase'
 import { toArabicError } from '../lib/errorMessages'
 
 const STATUS_LABELS = {
@@ -73,6 +78,90 @@ export default function Matches() {
       new Date(activeMatch.registration_open_at) <= new Date() &&
       new Date() < new Date(activeMatch.registration_close_at),
   )
+
+  const resultMatchIds = pastMatches.map((match) => match.id)
+
+  const pastResultsQuery = useQuery({
+    queryKey: ['past-match-results', resultMatchIds.join('|')],
+    enabled: resultMatchIds.length > 0,
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from('match_results')
+          .select('match_id,team_a_score,team_b_score')
+          .in('match_id', resultMatchIds)
+        if (error) throw error
+        return data ?? []
+      } catch {
+        return []
+      }
+    },
+    staleTime: 30_000,
+  })
+
+  const pastTeamsQuery = useQuery({
+    queryKey: ['past-match-teams', resultMatchIds.join('|')],
+    enabled: resultMatchIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_teams')
+        .select('id,match_id,side,name_ar,color')
+        .in('match_id', resultMatchIds)
+      if (error) {
+        console.debug('match_teams unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 30_000,
+  })
+
+  const pastScorersQuery = useQuery({
+    queryKey: ['past-match-scorers', resultMatchIds.join('|')],
+    enabled: resultMatchIds.length > 0,
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from('match_scorers')
+          .select('id,match_id,player_id,team_id,goals,assists')
+          .in('match_id', resultMatchIds)
+          .order('goals', { ascending: false })
+        if (error) throw error
+        return data ?? []
+      } catch {
+        return []
+      }
+    },
+    staleTime: 30_000,
+  })
+
+  const scorerPlayerIds = [...new Set((pastScorersQuery.data ?? []).map((scorer) => scorer.player_id))]
+  const scorerNamesQuery = useQuery({
+    queryKey: ['past-scorer-names', scorerPlayerIds.join('|')],
+    enabled: scorerPlayerIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('player_directory')
+        .select('id,full_name')
+        .in('id', scorerPlayerIds)
+      if (error) throw error
+      return data ?? []
+    },
+    staleTime: 60_000,
+  })
+
+  const resultByMatchId = new Map((pastResultsQuery.data ?? []).map((item) => [item.match_id, item]))
+  const teamsByMatchId = new Map()
+  for (const team of pastTeamsQuery.data ?? []) {
+    if (!teamsByMatchId.has(team.match_id)) teamsByMatchId.set(team.match_id, [])
+    teamsByMatchId.get(team.match_id).push(team)
+  }
+  const scorersByMatchId = new Map()
+  for (const scorer of pastScorersQuery.data ?? []) {
+    if (!scorersByMatchId.has(scorer.match_id)) scorersByMatchId.set(scorer.match_id, [])
+    scorersByMatchId.get(scorer.match_id).push(scorer)
+  }
+  const scorerNameById = new Map((scorerNamesQuery.data ?? []).map((player) => [player.id, player.full_name]))
 
   return (
     <div>
@@ -224,47 +313,178 @@ export default function Matches() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {pastMatches.map((match) => {
               const stats = statsByMatchId.get(match.id)
+              const result = resultByMatchId.get(match.id)
+              const matchTeams = teamsByMatchId.get(match.id) ?? []
+              const matchScorers = scorersByMatchId.get(match.id) ?? []
+              const teamA = matchTeams.find((team) => team.side === 'A')
+              const teamB = matchTeams.find((team) => team.side === 'B')
+
               return (
-                <Card key={match.id} className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-extrabold text-sand-100">{formatMatchDate(match.local_date)}</h3>
-                      <p className="mt-1 flex items-center gap-1.5 text-[11px] text-white/45">
-                        <MapPin className="size-3.5 shrink-0" />
-                        <span className="truncate">{match.venue}</span>
-                      </p>
+                <Card key={match.id} className="overflow-hidden p-0">
+                  <div className="p-5 pb-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-extrabold text-sand-100">{formatMatchDate(match.local_date)}</h3>
+                        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-white/45">
+                          <MapPin className="size-3.5 shrink-0" />
+                          <span className="truncate">{match.venue}</span>
+                        </p>
+                      </div>
+                      <Badge variant={match.status === 'completed' ? 'brand' : match.status === 'cancelled' ? 'warning' : 'neutral'}>
+                        {STATUS_LABELS[match.status] ?? match.status}
+                      </Badge>
                     </div>
-                    <Badge variant={match.status === 'completed' ? 'brand' : match.status === 'cancelled' ? 'warning' : 'neutral'}>
-                      {STATUS_LABELS[match.status] ?? match.status}
-                    </Badge>
+
+                    {result ? (
+                      <>
+                        <div className="relative mt-4 overflow-hidden rounded-3xl border border-white/10 bg-pitch-950/60 px-4 py-4">
+                          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                            <div
+                              className="absolute inset-y-0 start-0 w-1/2"
+                              style={{ background: `linear-gradient(120deg, ${teamA?.color ?? '#d2ff4d'}2e, transparent 70%)` }}
+                            />
+                            <div
+                              className="absolute inset-y-0 end-0 w-1/2"
+                              style={{ background: `linear-gradient(-120deg, ${teamB?.color ?? '#f5f3ea'}2e, transparent 70%)` }}
+                            />
+                          </div>
+                          <div className="relative">
+                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                              <div className="min-w-0 text-end">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <p className="truncate text-[11px] font-black text-sand-100">
+                                    {teamA?.name_ar ?? 'الفريق أ'}
+                                  </p>
+                                  <span className="size-2.5 shrink-0 rounded-full border border-white/25" style={{ backgroundColor: teamA?.color ?? '#d2ff4d' }} aria-hidden="true" />
+                                </div>
+                                <p
+                                  className="mt-0.5 text-4xl font-black tabular-nums"
+                                  style={result.team_a_score > result.team_b_score ? { color: teamA?.color ?? '#d2ff4d' } : undefined}
+                                >
+                                  {result.team_a_score}
+                                </p>
+                              </div>
+                              <div className="min-w-20 px-1 text-center">
+                                {(() => {
+                                  const winnerTeam =
+                                    result.team_a_score > result.team_b_score
+                                      ? teamA
+                                      : result.team_a_score < result.team_b_score
+                                        ? teamB
+                                        : null
+                                  return winnerTeam ? (
+                                    <p
+                                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black text-pitch-950"
+                                      style={{ backgroundColor: winnerTeam.color ?? '#d2ff4d' }}
+                                    >
+                                      <Trophy className="size-3" />
+                                      الفائز
+                                    </p>
+                                  ) : (
+                                    <p className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black text-white/65">
+                                      تعادل
+                                    </p>
+                                  )
+                                })()}
+                              </div>
+                              <div className="min-w-0 text-start">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="size-2.5 shrink-0 rounded-full border border-white/25" style={{ backgroundColor: teamB?.color ?? '#f5f3ea' }} aria-hidden="true" />
+                                  <p className="truncate text-[11px] font-black text-sand-100">
+                                    {teamB?.name_ar ?? 'الفريق ب'}
+                                  </p>
+                                </div>
+                                <p
+                                  className="mt-0.5 text-4xl font-black tabular-nums"
+                                  style={result.team_b_score > result.team_a_score ? { color: teamB?.color ?? '#f5f3ea' } : undefined}
+                                >
+                                  {result.team_b_score}
+                                </p>
+                              </div>
+                            </div>
+
+                            {matchScorers.length ? (
+                              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                                {[teamA, teamB].map((team, index) => {
+                                  const teamScorers = matchScorers.filter((scorer) => scorer.team_id === team?.id)
+                                  if (!teamScorers.length) return null
+                                  return (
+                                    <div key={team?.id ?? index} className="min-w-0">
+                                      <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold text-white/45">
+                                        <span className="size-2 rounded-full" style={{ backgroundColor: team?.color ?? '#d2ff4d' }} aria-hidden="true" />
+                                        {team?.name_ar ?? (index === 0 ? 'الفريق أ' : 'الفريق ب')}
+                                      </p>
+                                      <div className="space-y-1">
+                                        {teamScorers.map((scorer) => (
+                                          <div key={scorer.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.04] px-2 py-1">
+                                            <span className="min-w-0 truncate text-[11px] font-bold text-sand-100">
+                                              {scorerNameById.get(scorer.player_id) ?? 'لاعب'}
+                                            </span>
+                                            <span className="flex shrink-0 items-center gap-1">
+                                              {scorer.goals ? (
+                                                <span title={`${scorer.goals} هدف`} className="flex h-4.5 items-center gap-0.5 rounded-full bg-white px-1.5 text-[9px] font-black text-pitch-950">
+                                                  <Volleyball className="size-2" />
+                                                  {scorer.goals}
+                                                </span>
+                                              ) : null}
+                                              {scorer.assists ? (
+                                                <span title={`${scorer.assists} تمريرة`} className="flex h-4.5 items-center gap-0.5 rounded-full bg-brand-300 px-1.5 text-[9px] font-black text-pitch-950">
+                                                  <Footprints className="size-2" />
+                                                  {scorer.assists}
+                                                </span>
+                                              ) : null}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-center gap-4 text-[10px] text-white/40">
+                          <span>
+                            مؤكدون <span className="font-black text-white/65">{stats?.confirmed_count ?? 0}</span>
+                          </span>
+                          <span>
+                            انتظار <span className="font-black text-white/65">{stats?.waitlisted_count ?? 0}</span>
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+                        <div className="rounded-xl bg-white/[0.03] p-2.5">
+                          <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.confirmed_count ?? 0}</p>
+                          <p className="mt-0.5 text-[10px] text-white/40">مؤكدون</p>
+                        </div>
+                        <div className="rounded-xl bg-white/[0.03] p-2.5">
+                          <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.waitlisted_count ?? 0}</p>
+                          <p className="mt-0.5 text-[10px] text-white/40">انتظار</p>
+                        </div>
+                        <div className="rounded-xl bg-white/[0.03] p-2.5">
+                          <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.team_a_count ?? 0}</p>
+                          <p className="mt-0.5 text-[10px] text-white/40">فريق أ</p>
+                        </div>
+                        <div className="rounded-xl bg-white/[0.03] p-2.5">
+                          <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.team_b_count ?? 0}</p>
+                          <p className="mt-0.5 text-[10px] text-white/40">فريق ب</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-                    <div className="rounded-xl bg-white/[0.03] p-2.5">
-                      <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.confirmed_count ?? 0}</p>
-                      <p className="mt-0.5 text-[10px] text-white/40">مؤكدون</p>
-                    </div>
-                    <div className="rounded-xl bg-white/[0.03] p-2.5">
-                      <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.waitlisted_count ?? 0}</p>
-                      <p className="mt-0.5 text-[10px] text-white/40">انتظار</p>
-                    </div>
-                    <div className="rounded-xl bg-white/[0.03] p-2.5">
-                      <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.team_a_count ?? 0}</p>
-                      <p className="mt-0.5 text-[10px] text-white/40">فريق أ</p>
-                    </div>
-                    <div className="rounded-xl bg-white/[0.03] p-2.5">
-                      <p className="text-base font-extrabold tabular-nums text-sand-100">{stats?.team_b_count ?? 0}</p>
-                      <p className="mt-0.5 text-[10px] text-white/40">فريق ب</p>
-                    </div>
+                  <div className="border-t border-white/[0.07] px-5 py-3">
+                    <Link
+                      to={`/matches/${match.id}`}
+                      className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
+                    >
+                      فتح تفاصيل المباراة
+                      <ArrowLeft className="size-3.5" />
+                    </Link>
                   </div>
-
-                  <Link
-                    to={`/matches/${match.id}`}
-                    className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
-                  >
-                    فتح تفاصيل المباراة
-                    <ArrowLeft className="size-3.5" />
-                  </Link>
                 </Card>
               )
             })}
