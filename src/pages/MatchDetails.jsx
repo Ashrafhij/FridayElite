@@ -371,6 +371,10 @@ export default function MatchDetails() {
   const [modalSwapTarget, setModalSwapTarget] = useState('')
   const [modalSwapBusy, setModalSwapBusy] = useState(false)
   const [modalSwapError, setModalSwapError] = useState('')
+  const [modalPosition, setModalPosition] = useState('')
+  const [modalPositionBusy, setModalPositionBusy] = useState(false)
+  const [modalPositionError, setModalPositionError] = useState('')
+  const [modalPositionSuccess, setModalPositionSuccess] = useState('')
 
   useMatchRealtime(matchId)
 
@@ -680,6 +684,11 @@ export default function MatchDetails() {
     setStatsSuccess('')
     setModalSwapTarget('')
     setModalSwapError('')
+    setModalPosition(
+      ratingTarget ? assignmentByPlayerId.get(ratingTarget.playerId)?.assigned_position_code ?? '' : '',
+    )
+    setModalPositionError('')
+    setModalPositionSuccess('')
   }, [ratingTarget?.playerId])
 
   // Players arriving through the admin's rating link land on the pitch.
@@ -887,6 +896,35 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['match-player-directory', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['all-players-directory'] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleSetPlayerPosition(event) {
+    event.preventDefault()
+    if (!match || !ratingTarget || !modalPosition || modalPositionBusy) return
+    setModalPositionBusy(true)
+    setModalPositionError('')
+    setModalPositionSuccess('')
+
+    const { error } = await supabase.rpc('set_player_match_position', {
+      p_match_id: match.id,
+      p_player_id: ratingTarget.playerId,
+      p_position_code: modalPosition,
+    })
+    setModalPositionBusy(false)
+
+    if (error) {
+      setModalPositionError(toArabicError(error, 'تعذر تغيير مركز اللاعب.'))
+      return
+    }
+
+    const positionName = positionByCode.get(modalPosition)?.name_ar ?? modalPosition
+    setRatingTarget((current) => (current ? { ...current, positionLabel: positionName } : current))
+    setModalPositionSuccess(`أصبح مركز اللاعب: ${positionName}.`)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
     ])
   }
 
@@ -2213,6 +2251,47 @@ export default function MatchDetails() {
                 </button>
                 <p className="mt-2 text-[11px] leading-5 text-white/40">
                   يعمل داخل نفس الفريق وبين الفريقين ومع اللاعبين الضيوف، أو يستبدل اللاعب بلاعب من الفريق لم يسجل في هذه المباراة. لا يمكن مبادلة حارس مرمى مع لاعب ميدان.
+                </p>
+              </form>
+            ) : null}
+
+            {isAdmin && assignmentByPlayerId.has(ratingTarget.playerId) ? (
+              <form onSubmit={handleSetPlayerPosition} className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <h3 className="flex items-center gap-2 text-sm font-extrabold text-sand-100">
+                  <MapPin className="size-4 text-brand-300" />
+                  تغيير مركز اللاعب
+                </h3>
+                <label htmlFor="modal-player-position" className="mt-3 block text-[11px] font-bold text-white/50">
+                  المركز الجديد
+                </label>
+                <select
+                  id="modal-player-position"
+                  value={modalPosition}
+                  onChange={(event) => setModalPosition(event.target.value)}
+                  disabled={modalPositionBusy}
+                  required
+                  className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                >
+                  <option value="">اختر مركزًا</option>
+                  {(positionsQuery.data ?? []).map((position) => (
+                    <option key={position.code} value={position.code}>
+                      {position.name_ar}
+                      {position.code === assignmentByPlayerId.get(ratingTarget.playerId)?.assigned_position_code ? ' — الحالي' : ''}
+                    </option>
+                  ))}
+                </select>
+                {modalPositionError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{modalPositionError}</p> : null}
+                {modalPositionSuccess ? <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">{modalPositionSuccess}</p> : null}
+                <button
+                  type="submit"
+                  disabled={modalPositionBusy || !modalPosition}
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-brand-400/30 bg-brand-400/10 px-4 py-2.5 text-xs font-extrabold text-brand-200 transition-colors hover:bg-brand-400/20 disabled:opacity-60"
+                >
+                  {modalPositionBusy ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
+                  تعيين المركز
+                </button>
+                <p className="mt-2 text-[11px] leading-5 text-white/40">
+                  يمكن تعيين أي مركز حتى لو لم يكن من مراكز اللاعب المفضلة.
                 </p>
               </form>
             ) : null}
