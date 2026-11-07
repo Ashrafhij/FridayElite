@@ -135,6 +135,7 @@ export default function Dashboard() {
   const leaders = useMemo(() => {
     const directoryById = new Map((allTimePlayersQuery.data ?? []).map((player) => [player.id, player]))
     const statsRows = allTimeStatsQuery.data ?? []
+    const statsByPlayer = new Map(statsRows.map((item) => [item.player_id, item]))
 
     const byGoals = [...statsRows].sort(
       (a, b) => b.total_goals - a.total_goals || b.total_assists - a.total_assists,
@@ -151,11 +152,21 @@ export default function Dashboard() {
     const mostGames = byGames[0]?.games > 0 ? byGames[0] : null
 
     const topScorers = byGoals.filter((item) => item.total_goals > 0).slice(0, 5)
+    const topAssisters = byAssists.filter((item) => item.total_assists > 0).slice(0, 5)
+    const topByGames = byGames.filter((item) => item.games > 0).slice(0, 5)
 
-    return { directoryById, topScorer, topAssister, mostGames, topScorers }
+    return { directoryById, statsByPlayer, topScorer, topAssister, mostGames, topScorers, topAssisters, topByGames }
   }, [allTimeStatsQuery.data, allTimePlayersQuery.data, gamesPlayedByPlayer])
 
   const hasAllTimeStats = Boolean(leaders.topScorer || leaders.topAssister || leaders.mostGames)
+  const [leadersTab, setLeadersTab] = useState('goals')
+
+  const activeRanking =
+    leadersTab === 'assists'
+      ? leaders.topAssisters
+      : leadersTab === 'games'
+        ? leaders.topByGames
+        : leaders.topScorers
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -315,17 +326,46 @@ export default function Dashboard() {
             ) : null}
           </div>
 
-          {leaders.topScorers.length ? (
+          {activeRanking.length ? (
             <Card className="mt-4 p-5">
-              <h3 className="flex items-center gap-2 text-sm font-extrabold text-sand-100">
-                <Trophy className="size-4 text-brand-300" />
-                قائمة الهدافين التاريخيين
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="flex items-center gap-2 text-sm font-extrabold text-sand-100">
+                  <Trophy className="size-4 text-brand-300" />
+                  {leadersTab === 'assists'
+                    ? 'قائمة صناع الألعاب التاريخيين'
+                    : leadersTab === 'games'
+                      ? 'قائمة الأكثر مشاركة'
+                      : 'قائمة الهدافين التاريخيين'}
+                </h3>
+                <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-pitch-950/50 p-1" role="tablist" aria-label="ترتيب الإحصائيات">
+                  {[
+                    { key: 'goals', label: 'أهداف', icon: Volleyball },
+                    { key: 'assists', label: 'تمريرات', icon: Footprints },
+                    { key: 'games', label: 'مباريات', icon: History },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={leadersTab === key}
+                      onClick={() => setLeadersTab(key)}
+                      className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-extrabold transition-colors ${leadersTab === key ? 'bg-brand-400 text-pitch-950' : 'text-white/50 hover:text-white'}`}
+                    >
+                      <Icon className="size-3.5" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-3 space-y-2">
-                {leaders.topScorers.map((stat, index) => {
-                  const player = leaders.directoryById.get(stat.player_id)
+                {activeRanking.map((row, index) => {
+                  const playerId = row.player_id ?? row.playerId
+                  const stat = leaders.statsByPlayer.get(playerId)
+                  const games = row.games ?? stat?.matches_with_stats ?? 0
+                  const player = leaders.directoryById.get(playerId)
                   return (
-                    <div key={stat.player_id} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+                    <div key={playerId} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3 py-2">
                       <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-white/5 text-xs font-black text-white/55">
                         {index + 1}
                       </span>
@@ -333,22 +373,43 @@ export default function Dashboard() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-extrabold text-sand-100">{player?.full_name ?? 'لاعب'}</p>
                         <p className="mt-0.5 text-[10px] text-white/40">
-                          {stat.matches_with_stats} مباراة بمساهمات
+                          {leadersTab === 'goals'
+                            ? `${stat?.total_goals ?? 0} هدف · ${stat?.total_assists ?? 0} تمريرة`
+                            : leadersTab === 'assists'
+                              ? `${stat?.total_assists ?? 0} تمريرة · ${stat?.total_goals ?? 0} هدف`
+                              : `${games} مباراة`}
                         </p>
                       </div>
                       <span className="flex shrink-0 items-center gap-1">
-                        {stat.total_goals ? (
-                          <span title={`${stat.total_goals} هدف`} className="flex h-5 items-center gap-0.5 rounded-full bg-white px-1.5 text-[10px] font-black text-pitch-950">
+                        {stat?.total_goals ? (
+                          <span
+                            title={`${stat.total_goals} هدف`}
+                            className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'goals' ? 'bg-white ring-2 ring-brand-400/60' : 'bg-white/85'}`}
+                          >
                             <Volleyball className="size-2.5" />
                             {stat.total_goals}
                           </span>
                         ) : null}
-                        {stat.total_assists ? (
-                          <span title={`${stat.total_assists} تمريرة`} className="flex h-5 items-center gap-0.5 rounded-full bg-brand-300 px-1.5 text-[10px] font-black text-pitch-950">
+                        {stat?.total_assists ? (
+                          <span
+                            title={`${stat.total_assists} تمريرة`}
+                            className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'assists' ? 'bg-brand-300 ring-2 ring-white/40' : 'bg-brand-300/85'}`}
+                          >
                             <Footprints className="size-2.5" />
                             {stat.total_assists}
                           </span>
                         ) : null}
+                        <span
+                          title={`${games} مباراة`}
+                          className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black ${
+                            leadersTab === 'games'
+                              ? 'bg-brand-400 text-pitch-950 ring-2 ring-white/40'
+                              : 'bg-white/10 text-white/60'
+                          }`}
+                        >
+                          <History className="size-2.5" />
+                          {games}
+                        </span>
                       </span>
                     </div>
                   )
