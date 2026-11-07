@@ -207,15 +207,33 @@ function AssignmentRow({ assignment, directoryById, positionByCode }) {
   )
 }
 
-function PitchPlayerButton({ player, subLabel, averageRating, myRating, selected, onSelect }) {
+function PitchPlayerButton({
+  player,
+  subLabel,
+  averageRating,
+  myRating,
+  selected,
+  dropActive,
+  draggable,
+  onSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}) {
   const initial = player?.full_name?.trim()?.charAt(0) || '؟'
   return (
     <div className="flex min-w-0 flex-col items-center gap-1.5">
       <button
         type="button"
         onClick={onSelect}
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
         aria-label={player?.full_name ? `فتح تقييم ${player.full_name}` : 'فتح تقييم اللاعب'}
-        className={`relative grid size-12 place-items-center overflow-hidden rounded-full border transition-all ${selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'}`}
+        className={`relative grid size-12 place-items-center overflow-hidden rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {initial}
         {player?.avatar_url ? (
@@ -224,6 +242,7 @@ function PitchPlayerButton({ player, subLabel, averageRating, myRating, selected
             alt=""
             loading="lazy"
             decoding="async"
+            draggable={false}
             className="absolute inset-0 size-full object-cover"
             onError={(event) => {
               event.currentTarget.style.display = 'none'
@@ -292,6 +311,11 @@ export default function MatchDetails() {
   const [statsError, setStatsError] = useState('')
   const [statsSuccess, setStatsSuccess] = useState('')
   const [ratingLinkCopied, setRatingLinkCopied] = useState(false)
+  const [swapMode, setSwapMode] = useState(false)
+  const [pitchSwapFirstId, setPitchSwapFirstId] = useState(null)
+  const [pitchSwapBusy, setPitchSwapBusy] = useState(false)
+  const [pitchNotice, setPitchNotice] = useState(null)
+  const [dragTargetId, setDragTargetId] = useState(null)
 
   useMatchRealtime(matchId)
 
@@ -692,6 +716,111 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
     ])
+  }
+
+  // Reset pitch interactions when moving to another match.
+  useEffect(() => {
+    setSwapMode(false)
+    setPitchSwapFirstId(null)
+    setPitchSwapBusy(false)
+    setPitchNotice(null)
+    setDragTargetId(null)
+  }, [matchId])
+
+  async function swapPlayersByIds(playerAId, playerBId) {
+    if (!match || pitchSwapBusy) return false
+    setPitchSwapBusy(true)
+    setPitchNotice(null)
+
+    const { error } = await supabase.rpc('swap_team_players', {
+      p_match_id: match.id,
+      p_player_a: playerAId,
+      p_player_b: playerBId,
+    })
+    setPitchSwapBusy(false)
+
+    if (error) {
+      setPitchNotice({ type: 'err', text: toArabicError(error, 'تعذر تنفيذ المبادلة.') })
+      return false
+    }
+
+    const nameA = directoryById.get(playerAId)?.full_name ?? 'لاعب'
+    const nameB = directoryById.get(playerBId)?.full_name ?? 'لاعب'
+    setPitchNotice({ type: 'ok', text: `تم تبديل ${nameA} و${nameB}.` })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+    return true
+  }
+
+  async function handlePitchPlayerPick(playerId) {
+    if (!swapMode || pitchSwapBusy) return
+    if (!pitchSwapFirstId) {
+      setPitchSwapFirstId(playerId)
+      const name = directoryById.get(playerId)?.full_name ?? 'لاعب'
+      setPitchNotice({ type: 'info', text: `اختر اللاعب الثاني للمبادلة مع ${name}.` })
+      return
+    }
+    if (pitchSwapFirstId === playerId) {
+      setPitchSwapFirstId(null)
+      setPitchNotice({ type: 'info', text: 'أُلغيت المبادلة.' })
+      return
+    }
+    const firstId = pitchSwapFirstId
+    setPitchSwapFirstId(null)
+    await swapPlayersByIds(firstId, playerId)
+  }
+
+  function handlePitchDragStart(event, playerId) {
+    event.dataTransfer.setData('text/plain', playerId)
+    event.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handlePitchDragOver(event, playerId) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setDragTargetId((current) => (current === playerId ? current : playerId))
+  }
+
+  function handlePitchDrop(event, playerId) {
+    event.preventDefault()
+    const sourceId = event.dataTransfer.getData('text/plain')
+    setDragTargetId(null)
+    if (!sourceId || sourceId === playerId) return
+    void swapPlayersByIds(sourceId, playerId)
+  }
+
+  async function handleSetSingleTeamColor(side, hex) {
+    if (!match || colorBusy) return
+    const otherSide = side === 'A' ? 'B' : 'A'
+    const otherTeam = teams.find((team) => team.side === otherSide)
+    const ownTeam = teams.find((team) => team.side === side)
+    if (!otherTeam || !ownTeam) return
+
+    const payload =
+      side === 'A'
+        ? { p_team_a_color: hex, p_team_b_color: otherTeam.color ?? '#f5f3ea' }
+        : { p_team_a_color: otherTeam.color ?? '#d2ff4d', p_team_b_color: hex }
+
+    setColorBusy(true)
+    setPitchNotice(null)
+    const { error } = await supabase.rpc('set_match_team_colors', {
+      p_match_id: match.id,
+      ...payload,
+    })
+    setColorBusy(false)
+
+    if (error) {
+      setPitchNotice({ type: 'err', text: toArabicError(error, 'تعذر حفظ لون الفريق.') })
+      return
+    }
+
+    setPitchNotice({ type: 'ok', text: `أصبح ${ownTeam.name_ar} باللون الجديد.` })
+    await queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] })
   }
 
   function getRatingLink() {
@@ -1482,10 +1611,63 @@ export default function MatchDetails() {
               اضغط على أي لاعب لتقييمه من 1 إلى 10. الإدارة: اضغط على لاعب لإدخال أهدافه وتمريراته مباشرة.
             </p>
           </div>
-          <Badge variant={canRate ? 'brand' : 'neutral'}>
-            {canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}
-          </Badge>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <Badge variant={canRate ? 'brand' : 'neutral'}>
+              {canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}
+            </Badge>
+            {isAdmin && teams.length ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSwapMode((value) => !value)
+                  setPitchSwapFirstId(null)
+                  setPitchNotice(null)
+                }}
+                aria-pressed={swapMode}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-extrabold transition-colors ${swapMode ? 'border-brand-400/50 bg-brand-400/15 text-brand-200' : 'border-white/10 bg-white/5 text-white/70 hover:text-white'}`}
+              >
+                <Shuffle className="size-4" />
+                {swapMode ? 'وضع المبادلة مفعّل — اضغط للإيقاف' : 'مبادلة اللاعبين'}
+              </button>
+            ) : null}
+          </div>
         </div>
+
+        {isAdmin && teams.length ? (
+          <p className="mb-4 text-[11px] leading-5 text-white/40">
+            للمبادلة: اسحب أي لاعب وأفلته على لاعب آخر، أو فعّل «مبادلة اللاعبين» ثم اضغط على لاعبين — يعمل في نفس الفريق وبين الفريقين.
+          </p>
+        ) : null}
+
+        {swapMode && isAdmin && teams.length ? (
+          <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-400/25 bg-brand-400/[0.08] px-4 py-3 text-xs font-bold leading-6 text-brand-100">
+            <span>
+              {pitchSwapFirstId
+                ? `اختر اللاعب الثاني للمبادلة مع ${directoryById.get(pitchSwapFirstId)?.full_name ?? 'لاعب'}.`
+                : 'اضغط على لاعب، ثم على اللاعب الثاني — في نفس الفريق أو الفريق الآخر.'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setPitchSwapFirstId(null)
+                setPitchNotice(null)
+              }}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-bold text-white/70 transition-colors hover:text-white"
+            >
+              <XCircle className="size-4" />
+              إلغاء التحديد
+            </button>
+          </div>
+        ) : null}
+
+        {pitchNotice ? (
+          <div
+            role={pitchNotice.type === 'err' ? 'alert' : 'status'}
+            className={`mb-4 rounded-2xl border px-4 py-3 text-xs font-bold leading-6 ${pitchNotice.type === 'err' ? 'border-red-400/20 bg-red-400/[0.06] text-red-200' : pitchNotice.type === 'ok' ? 'border-brand-400/20 bg-brand-400/[0.06] text-brand-200' : 'border-white/10 bg-white/[0.04] text-white/65'}`}
+          >
+            {pitchNotice.text}
+          </div>
+        ) : null}
 
         {isRateMode ? (
           <div role="status" className="mb-4 rounded-2xl border border-brand-400/25 bg-brand-400/[0.08] px-4 py-3 text-xs font-bold leading-6 text-brand-100">
@@ -1575,10 +1757,31 @@ export default function MatchDetails() {
                     : [groups.attack, groups.midfield, groups.defense, groups.gk]
                   return (
                     <div key={team.id} className="rounded-2xl bg-pitch-950/25 p-3">
-                      <div className="mb-3 flex items-center justify-center gap-2">
-                        <span className="size-3 rounded-full" style={{ backgroundColor: team.color ?? '#d2ff4d' }} aria-hidden="true" />
-                        <p className="text-xs font-extrabold text-sand-100">{team.name_ar}</p>
-                        <span className="text-[10px] font-bold text-white/40">{teamAssignments.length}/9</span>
+                      <div className="mb-3 flex flex-col items-center gap-2">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="size-3.5 rounded-full border border-white/20" style={{ backgroundColor: team.color ?? '#d2ff4d' }} aria-hidden="true" />
+                          <p className="text-xs font-extrabold text-sand-100">{team.name_ar}</p>
+                          <span className="text-[10px] font-bold text-white/40">{teamAssignments.length}/9</span>
+                        </div>
+                        {isAdmin ? (
+                          <div className="flex items-center gap-1.5" aria-label={`لون ${team.name_ar}`}>
+                            {TEAM_COLOR_PRESETS.map((preset) => {
+                              const active = (team.color ?? '').toLowerCase() === preset.value.toLowerCase()
+                              return (
+                                <button
+                                  key={preset.value}
+                                  type="button"
+                                  title={preset.label}
+                                  aria-label={`تعيين ${team.name_ar} باللون ${preset.label}`}
+                                  disabled={colorBusy}
+                                  onClick={() => void handleSetSingleTeamColor(team.side, preset.value)}
+                                  className={`size-6 rounded-full border transition-all disabled:opacity-50 ${active ? 'scale-110 border-white ring-2 ring-white/40' : 'border-white/20 hover:scale-110'}`}
+                                  style={{ backgroundColor: preset.value }}
+                                />
+                              )
+                            })}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="space-y-3">
                         {rows.map((row, rowIndex) => (
@@ -1608,8 +1811,18 @@ export default function MatchDetails() {
                                     averageRating={stat?.average_rating}
                                     myRating={myRatingsByPlayer.get(assignment.player_id) ?? 0}
                                     subLabel={matchStatsLabel ?? allTimeLabel ?? `${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
-                                    selected={ratingTarget?.playerId === assignment.player_id}
-                                    onSelect={() =>
+                                    selected={ratingTarget?.playerId === assignment.player_id || pitchSwapFirstId === assignment.player_id}
+                                    dropActive={dragTargetId === assignment.player_id}
+                                    draggable={isAdmin && !pitchSwapBusy}
+                                    onDragStart={(event) => handlePitchDragStart(event, assignment.player_id)}
+                                    onDragOver={(event) => handlePitchDragOver(event, assignment.player_id)}
+                                    onDrop={(event) => handlePitchDrop(event, assignment.player_id)}
+                                    onDragEnd={() => setDragTargetId(null)}
+                                    onSelect={() => {
+                                      if (swapMode && isAdmin) {
+                                        void handlePitchPlayerPick(assignment.player_id)
+                                        return
+                                      }
                                       setRatingTarget({
                                         playerId: assignment.player_id,
                                         player,
@@ -1619,7 +1832,7 @@ export default function MatchDetails() {
                                         statsGoals: matchScorer?.goals ?? 0,
                                         statsAssists: matchScorer?.assists ?? 0,
                                       })
-                                    }
+                                    }}
                                   />
                                 )
                               })}
