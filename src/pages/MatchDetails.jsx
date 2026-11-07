@@ -321,9 +321,11 @@ export default function MatchDetails() {
   const { matchId } = useParams()
   const [searchParams] = useSearchParams()
   const isRateMode = searchParams.get('rate') === '1'
+  const isRegisterMode = searchParams.get('register') === '1'
   const { isAdmin, profile } = useAuth()
   const queryClient = useQueryClient()
   const pitchRef = useRef(null)
+  const registerRef = useRef(null)
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
   const [generateSuccess, setGenerateSuccess] = useState('')
@@ -363,6 +365,8 @@ export default function MatchDetails() {
   const [statsError, setStatsError] = useState('')
   const [statsSuccess, setStatsSuccess] = useState('')
   const [ratingLinkCopied, setRatingLinkCopied] = useState(false)
+  const [registerLinkCopied, setRegisterLinkCopied] = useState(false)
+  const [myRegistrationBusy, setMyRegistrationBusy] = useState(false)
   const [swapMode, setSwapMode] = useState(false)
   const [pitchSwapFirstId, setPitchSwapFirstId] = useState(null)
   const [pitchSwapBusy, setPitchSwapBusy] = useState(false)
@@ -653,6 +657,15 @@ export default function MatchDetails() {
   const ratingStatsByPlayer = new Map((ratingStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const allTimeStatsByPlayer = new Map((allTimeStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
+  const myRegistration = registrations.find(
+    (item) => item.player_id === profile?.id && item.status !== 'cancelled',
+  )
+  const registrationOpenForMatch = Boolean(
+    match &&
+      !['completed', 'cancelled'].includes(match.status) &&
+      new Date(match.registration_open_at || 0).getTime() <= Date.now() &&
+      Date.now() < new Date(match.registration_close_at || 0).getTime(),
+  )
   const canRate = Boolean(match?.status === 'completed' && currentUserRegistration)
   const teams = teamsQuery.data ?? []
   const teamById = new Map(teams.map((team) => [team.id, team]))
@@ -697,6 +710,14 @@ export default function MatchDetails() {
       pitchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [isRateMode])
+
+  // Players arriving through the admin's registration link land on the
+  // registration card.
+  useEffect(() => {
+    if (isRegisterMode) {
+      registerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [isRegisterMode])
 
   async function handleGenerateTeams() {
     if (!match || !canGenerateTeams) return
@@ -998,6 +1019,79 @@ export default function MatchDetails() {
     return `${window.location.origin}${window.location.pathname}#/matches/${matchId}?rate=1`
   }
 
+  function getRegisterLink() {
+    return `${window.location.origin}${window.location.pathname}#/matches/${matchId}?register=1`
+  }
+
+  async function copyLinkText(text, onCopied) {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      textarea.remove()
+    }
+    onCopied(true)
+    window.setTimeout(() => onCopied(false), 2500)
+  }
+
+  async function handleCopyRegisterLink() {
+    await copyLinkText(getRegisterLink(), setRegisterLinkCopied)
+  }
+
+  async function handleRegisterForMatch() {
+    if (!match || myRegistrationBusy) return
+    setMyRegistrationBusy(true)
+    setRegistrationError('')
+    setRegistrationSuccess('')
+
+    const { data, error } = await supabase.rpc('register_for_match', { p_match_id: match.id })
+    setMyRegistrationBusy(false)
+
+    if (error) {
+      setRegistrationError(toArabicError(error, 'تعذر التسجيل في المباراة.'))
+      return
+    }
+
+    setRegistrationSuccess(data?.status === 'waitlisted' ? 'أنت الآن في قائمة الانتظار.' : 'تم تسجيلك في المباراة.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleCancelMyRegistration() {
+    if (!myRegistration || myRegistrationBusy) return
+    setMyRegistrationBusy(true)
+    setRegistrationError('')
+    setRegistrationSuccess('')
+
+    const { error } = await supabase.rpc('cancel_registration', {
+      p_registration_id: myRegistration.id,
+    })
+    setMyRegistrationBusy(false)
+
+    if (error) {
+      setRegistrationError(toArabicError(error, 'تعذر إلغاء التسجيل.'))
+      return
+    }
+
+    setRegistrationSuccess('تم إلغاء تسجيلك في المباراة.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
   async function handleCopyRatingLink() {
     const link = getRatingLink()
     try {
@@ -1258,6 +1352,65 @@ export default function MatchDetails() {
         }
       />
 
+      <section ref={registerRef} className="scroll-mt-24" aria-label="التسجيل في المباراة">
+        {isRegisterMode ? (
+          <div role="status" className="mb-4 rounded-2xl border border-brand-400/25 bg-brand-400/[0.08] px-4 py-3 text-xs font-bold leading-6 text-brand-100">
+            {myRegistration
+              ? `أنت مسجّل في هذه المباراة: ${myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : `قائمة الانتظار (الترتيب ${myRegistration.queue_position})`}.`
+              : registrationOpenForMatch
+                ? 'صفحة التسجيل: سجّل مقعدك في المباراة قبل اكتمال السعة.'
+                : `التسجيل يفتح ${formatDateTime(match.registration_open_at)} ويُغلق ${formatDateTime(match.registration_close_at)}.`}
+          </div>
+        ) : null}
+
+        <Card className="border-brand-400/20 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <UserPlus className="size-5 text-brand-300" />
+                التسجيل في المباراة
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                {registrationOpenForMatch
+                  ? 'التسجيل مفتوح الآن — سجّل مقعدك قبل اكتمال السعة.'
+                  : match.status === 'completed'
+                    ? 'اكتملت هذه المباراة ولا يمكن التسجيل فيها.'
+                    : `يُفتح التسجيل ${formatDateTime(match.registration_open_at)} ويُغلق ${formatDateTime(match.registration_close_at)}.`}
+              </p>
+              {registrationError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{registrationError}</p> : null}
+              {registrationSuccess ? <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">{registrationSuccess}</p> : null}
+            </div>
+
+            {myRegistration ? (
+              <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+                <Badge variant={myRegistration.status === 'confirmed' ? 'brand' : 'warning'}>
+                  {myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : 'قائمة الانتظار'}
+                </Badge>
+                <button
+                  type="button"
+                  onClick={() => void handleCancelMyRegistration()}
+                  disabled={myRegistrationBusy}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+                >
+                  {myRegistrationBusy ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+                  إلغاء التسجيل
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleRegisterForMatch()}
+                disabled={!registrationOpenForMatch || myRegistrationBusy}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+              >
+                {myRegistrationBusy ? <Loader2 className="size-4 animate-spin" /> : registrationOpenForMatch ? <UserPlus className="size-4" /> : <Lock className="size-4" />}
+                {registrationOpenForMatch ? 'التسجيل في المباراة' : 'التسجيل مغلق الآن'}
+              </button>
+            )}
+          </div>
+        </Card>
+      </section>
+
       {isAdmin ? (
         <Card className="mt-6 border-brand-400/20 p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1312,6 +1465,33 @@ export default function MatchDetails() {
           </div>
           <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
             {getRatingLink()}
+          </p>
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <UserPlus className="size-5 text-brand-300" />
+                رابط تسجيل اللاعبين
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                أرسل هذا الرابط للاعبين؛ سيفتح صفحة التسجيل لهذه المباراة مباشرة. يجب أن يكون اللاعب مسجلًا دخوله وموافقًا عليه.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCopyRegisterLink()}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+            >
+              {registerLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              {registerLinkCopied ? 'تم نسخ الرابط' : 'نسخ رابط التسجيل'}
+            </button>
+          </div>
+          <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
+            {getRegisterLink()}
           </p>
         </Card>
       ) : null}
