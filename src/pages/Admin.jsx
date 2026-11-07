@@ -126,7 +126,12 @@ export default function Admin() {
     },
   })
 
-  const players = useMemo(() => profiles.filter((item) => item.role !== 'admin'), [profiles])
+  // One-time guest players are match-only roster entries: they appear on the
+  // pitch and match details, never in the admin account lists.
+  const players = useMemo(
+    () => profiles.filter((item) => item.role !== 'admin' && !item.is_external),
+    [profiles]
+  )
   const pendingPlayers = useMemo(
     () => players.filter((item) => item.status === 'pending'),
     [players]
