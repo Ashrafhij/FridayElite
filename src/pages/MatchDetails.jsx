@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -319,6 +319,7 @@ function PitchPlayerButton({
 
 export default function MatchDetails() {
   const { matchId } = useParams()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isRateMode = searchParams.get('rate') === '1'
   const isRegisterMode = searchParams.get('register') === '1'
@@ -367,6 +368,8 @@ export default function MatchDetails() {
   const [ratingLinkCopied, setRatingLinkCopied] = useState(false)
   const [registerLinkCopied, setRegisterLinkCopied] = useState(false)
   const [myRegistrationBusy, setMyRegistrationBusy] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [swapMode, setSwapMode] = useState(false)
   const [pitchSwapFirstId, setPitchSwapFirstId] = useState(null)
   const [pitchSwapBusy, setPitchSwapBusy] = useState(false)
@@ -1044,6 +1047,24 @@ export default function MatchDetails() {
     await copyLinkText(getRegisterLink(), setRegisterLinkCopied)
   }
 
+  async function handleDeleteMatch() {
+    if (!match) return
+    if (!window.confirm(`سيتم حذف هذه المباراة نهائيًا مع جميع التسجيلات والفرق والنتيجة والتقييمات. لا يمكن التراجع. متابعة؟`)) return
+    setDeleteBusy(true)
+    setDeleteError('')
+
+    const { error } = await supabase.rpc('admin_delete_match', { p_match_id: match.id })
+    setDeleteBusy(false)
+
+    if (error) {
+      setDeleteError(toArabicError(error, 'تعذر حذف المباراة.'))
+      return
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] })
+    navigate('/matches')
+  }
+
   async function handleRegisterForMatch() {
     if (!match || myRegistrationBusy) return
     setMyRegistrationBusy(true)
@@ -1560,6 +1581,33 @@ export default function MatchDetails() {
             {externalError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{externalError}</p> : null}
             {externalSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{externalSuccess}</p> : null}
           </form>
+        </Card>
+      ) : null}
+
+      {/* Delete match (admin only) */}
+      {isAdmin ? (
+        <Card className="mt-4 border-red-400/25 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-red-200">
+                <Trash2 className="size-5 text-red-300" />
+                حذف المباراة
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                سيتم حذف المباراة نهائيًا مع جميع التسجيلات والفرق والنتيجة والتقييمات. قد تُعاد إنشاؤها تلقائيًا إذا كانت مباراة أسبوعية مجدولة.
+              </p>
+              {deleteError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{deleteError}</p> : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleDeleteMatch()}
+              disabled={deleteBusy}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-red-400/40 bg-red-400/10 px-5 py-3 text-sm font-extrabold text-red-200 transition-colors hover:bg-red-400/20 disabled:opacity-60"
+            >
+              {deleteBusy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              حذف المباراة نهائيًا
+            </button>
+          </div>
         </Card>
       ) : null}
 
