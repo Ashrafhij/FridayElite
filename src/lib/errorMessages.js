@@ -93,6 +93,7 @@ const ERROR_MESSAGES = [
   [/DUPLICATE_POSITION/i, 'لا يمكن تكرار المركز نفسه.'],
   [/PLAYER_NOT_FOUND/i, 'لم يتم العثور على اللاعب.'],
   [/ALREADY_APPROVED/i, 'الحساب موافق عليه بالفعل.'],
+  [/ALREADY_ADMIN/, 'هذا الحساب مدير بالفعل.'],
   [/CANNOT_MODIFY_ADMIN/i, 'لا يمكن تعديل حساب إداري من هذه الصفحة.'],
   [/CANNOT_MODIFY_SELF/i, 'لا يمكنك تنفيذ هذا الإجراء على حسابك.'],
   [/USE_SUSPEND_FOR_APPROVED_PLAYERS/i, 'استخدم تعليق الحساب للاعب الموافق عليه.'],

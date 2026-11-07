@@ -96,6 +96,10 @@ export default function Admin() {
   const [editBusy, setEditBusy] = useState(false)
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState('')
+  const [promotePlayerId, setPromotePlayerId] = useState('')
+  const [promoteBusy, setPromoteBusy] = useState(false)
+  const [promoteError, setPromoteError] = useState('')
+  const [promoteSuccess, setPromoteSuccess] = useState('')
   const positionsPrefilledFor = useRef(null)
   const [kickoffAt, setKickoffAt] = useState('')
   const [registrationOpenAt, setRegistrationOpenAt] = useState('')
@@ -312,6 +316,32 @@ export default function Admin() {
     void runRpc('suspend', target, reason.trim() || null)
   }
 
+  async function handlePromoteToAdmin(event) {
+    event.preventDefault()
+    if (!promotePlayerId || promoteBusy) return
+    const target = players.find((item) => item.id === promotePlayerId)
+    if (!target) return
+    if (!window.confirm(`سيتم تعيين ${target.full_name} كمدير بصلاحيات كاملة. متابعة؟`)) return
+
+    setPromoteBusy(true)
+    setPromoteError('')
+    setPromoteSuccess('')
+
+    const { error: rpcError } = await supabase.rpc('promote_to_admin', {
+      p_player_id: promotePlayerId,
+    })
+    setPromoteBusy(false)
+
+    if (rpcError) {
+      setPromoteError(toArabicError(rpcError, 'تعذر تعيين المدير.'))
+      return
+    }
+
+    setPromoteSuccess(`تم تعيين ${target.full_name} كمدير.`)
+    setPromotePlayerId('')
+    await refetch()
+  }
+
   function openReject(target) {
     setActionError('')
     setRejectTarget(target)
@@ -429,6 +459,59 @@ export default function Admin() {
         <StatTile icon={Ban} label="موقوفون" value={suspendedCount} />
         <StatTile icon={XCircle} label="مرفوضون" value={rejectedCount} />
       </div>
+
+      <section className="mt-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+              <ShieldCheck className="size-5 text-brand-300" />
+              إضافة مدير
+            </h2>
+            <p className="mt-1 text-xs leading-6 text-white/45">
+              عيّن لاعبًا كمدير بصلاحيات كاملة في إدارة المجموعة والمباريات والنتائج.
+            </p>
+          </div>
+        </div>
+
+        <Card className="p-5 sm:p-6">
+          <form onSubmit={handlePromoteToAdmin} className="grid gap-4 md:grid-cols-[1fr_auto]">
+            <div>
+              <label htmlFor="promote-player" className="text-xs font-bold text-white/55">
+                اللاعب
+              </label>
+              <select
+                id="promote-player"
+                value={promotePlayerId}
+                onChange={(event) => setPromotePlayerId(event.target.value)}
+                disabled={promoteBusy}
+                required
+                className={inputClass}
+              >
+                <option value="">اختر لاعبًا موافقًا عليه أو بانتظار الموافقة</option>
+                {players
+                  .filter((item) => ['approved', 'pending'].includes(item.status))
+                  .map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.full_name} — {player.phone}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={promoteBusy || !promotePlayerId}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-6"
+            >
+              {promoteBusy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              تعيين كمدير
+            </button>
+
+            {promoteError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-2">{promoteError}</p> : null}
+            {promoteSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-2">{promoteSuccess}</p> : null}
+          </form>
+        </Card>
+      </section>
 
       <section className="mt-6">
         <div className="mb-3 flex items-center justify-between gap-3">
