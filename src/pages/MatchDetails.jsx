@@ -2000,14 +2000,14 @@ export default function MatchDetails() {
 
       {ratingTarget ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-pitch-950/80 p-4 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-pitch-950/80 p-3 backdrop-blur-sm sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="rating-player-title"
           onClick={() => setRatingTarget(null)}
         >
           <div
-            className="w-full max-w-md rounded-[2rem] border border-white/10 bg-pitch-900/95 p-5 shadow-glow sm:p-6"
+            className="max-h-[92dvh] min-h-0 w-full max-w-md overflow-y-auto overscroll-contain rounded-[2rem] border border-white/10 bg-pitch-900/95 p-5 shadow-glow sm:p-6"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
