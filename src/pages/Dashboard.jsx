@@ -2,18 +2,12 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
   CalendarDays,
-  CheckCircle2,
   Clock,
-  ListOrdered,
   Lock,
   MapPin,
   Sparkles,
-  UserCheck,
-  Users,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
-import Card from '../components/ui/Card'
-import StatTile from '../components/ui/StatTile'
 import { useAuth } from '../context/AuthContext'
 import { useMatches } from '../hooks/useMatches'
 import { useRegistrationWindow } from '../hooks/useRegistrationWindow'
@@ -23,11 +17,7 @@ export default function Dashboard() {
   const { profile } = useAuth()
   const registrationWindow = useRegistrationWindow()
   const registrationOpen = registrationWindow.isOpen
-  const { activeMatch, statsByMatchId } = useMatches()
-  const activeStats = activeMatch ? statsByMatchId.get(activeMatch.id) : undefined
-  const availableSeats = activeMatch
-    ? Math.max(0, (activeMatch.capacity ?? 18) - (activeStats?.confirmed_count ?? 0))
-    : undefined
+  const { activeMatch } = useMatches()
   const activeMatchDate = activeMatch?.local_date
     ? new Intl.DateTimeFormat('ar', {
         weekday: 'long',
@@ -117,33 +107,6 @@ export default function Dashboard() {
           </p>
         </div>
       </section>
-
-      {/* Live numbers */}
-      <section aria-label="أرقام المباراة">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatTile icon={Users} label="المقاعد المتاحة" value={availableSeats ?? '١٨'} hint={activeMatch ? formatRegistrationDateTime(activeMatch.kickoff_at) : 'لكل مباراة أسبوعية'} />
-          <StatTile icon={UserCheck} label="اللاعبون المؤكدون" value={activeStats?.confirmed_count ?? '—'} hint={activeStats ? `من أصل ${activeMatch?.capacity ?? 18}` : 'تُحدَّث بعد ربط قاعدة البيانات'} />
-          <StatTile icon={ListOrdered} label="قائمة الانتظار" value={activeStats?.waitlisted_count ?? '—'} hint={activeStats ? 'بحسب ترتيب التسجيل' : 'تُحدَّث بعد ربط قاعدة البيانات'} />
-        </div>
-      </section>
-
-      <Card className="border-brand-400/15 bg-brand-400/[0.035] p-6">
-            <span className="grid size-10 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
-              <CheckCircle2 className="size-5" />
-            </span>
-            <h2 className="mt-4 text-base font-extrabold text-sand-100">حسابك موثّق</h2>
-            <p className="mt-2 text-[13px] leading-7 text-white/55">
-              تمت الموافقة على حسابك. يمكنك الوصول إلى المباريات والتسجيل في المواعيد المتاحة،
-              وإدارة ملفك ومراكزك المفضلة.
-            </p>
-            <Link
-              to="/profile"
-              className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 hover:text-brand-200"
-            >
-              مراجعة بياناتي
-              <ArrowLeft className="size-3.5" />
-            </Link>
-          </Card>
     </div>
   )
 }
