@@ -254,7 +254,7 @@ function PitchPlayerButton({
         onDrop={onDrop}
         onDragEnd={onDragEnd}
         aria-label={player?.full_name ? `فتح تقييم ${player.full_name}` : 'فتح تقييم اللاعب'}
-        className={`relative grid size-12 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : showExternalRing ? 'border-red-400 text-red-300 ring-4 ring-red-500/50' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`relative grid size-14 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : showExternalRing ? 'border-red-400 text-red-300 ring-4 ring-red-500/50' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {initial}
         {player?.avatar_url ? (
@@ -271,29 +271,29 @@ function PitchPlayerButton({
           />
         ) : null}
         {goalsCount > 0 || assistsCount > 0 ? (
-          <span className="absolute -top-1.5 -left-2 z-10 flex items-center gap-0.5" aria-hidden="true">
+          <span className="absolute -top-1.5 -left-2 z-10 flex flex-col items-end gap-0.5" aria-hidden="true">
             {goalsCount > 0 ? (
               <span
                 title={`${goalsCount} هدف`}
-                className="flex size-5 items-center justify-center gap-px rounded-full bg-white text-pitch-950 shadow"
+                className="flex h-[18px] items-center gap-0.5 rounded-full border border-pitch-950/30 bg-white px-1.5 text-[9px] leading-none font-black text-pitch-950 shadow"
               >
                 <Volleyball className="size-2.5" />
-                <span className="text-[8px] leading-none font-black">{goalsCount}</span>
+                {goalsCount}
               </span>
             ) : null}
             {assistsCount > 0 ? (
               <span
                 title={`${assistsCount} تمريرة`}
-                className="flex size-5 items-center justify-center gap-px rounded-full bg-brand-300 text-pitch-950 shadow"
+                className="flex h-[18px] items-center gap-0.5 rounded-full border border-pitch-950/30 bg-brand-300 px-1.5 text-[9px] leading-none font-black text-pitch-950 shadow"
               >
                 <Footprints className="size-2.5" />
-                <span className="text-[8px] leading-none font-black">{assistsCount}</span>
+                {assistsCount}
               </span>
             ) : null}
           </span>
         ) : null}
         {jerseyNumber ? (
-          <span className="absolute -top-1.5 -right-1.5 z-10 grid size-5 place-items-center rounded-full bg-white text-[9px] leading-none font-black text-pitch-950 shadow" aria-hidden="true">
+          <span className="absolute -top-2 -right-2 z-10 grid size-6 place-items-center rounded-full border border-pitch-950/20 bg-white text-[10px] leading-none font-black text-pitch-950 shadow" aria-hidden="true">
             {jerseyNumber}
           </span>
         ) : null}
@@ -307,10 +307,10 @@ function PitchPlayerButton({
           </span>
         ) : null}
       </button>
-      <span className="max-w-24 truncate text-center text-[10px] leading-4 font-bold text-sand-100">
+      <span className="max-w-28 truncate text-center text-[10px] leading-4 font-bold text-sand-100">
         {player?.full_name ?? 'لاعب'}
       </span>
-      <span className="max-w-24 truncate text-center text-[9px] leading-4 text-white/45">
+      <span className="max-w-28 truncate text-center text-[9px] leading-4 text-white/45">
         {subLabel || (myRating ? `قيّمتك ${myRating}` : 'اضغط للتقييم')}
       </span>
     </div>
