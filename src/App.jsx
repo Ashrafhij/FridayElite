@@ -42,6 +42,7 @@ const Admin = lazyWithReload(() => import('./pages/Admin'))
 const Dashboard = lazyWithReload(() => import('./pages/Dashboard'))
 const Login = lazyWithReload(() => import('./pages/Login'))
 const MatchDetails = lazyWithReload(() => import('./pages/MatchDetails'))
+const MatchResult = lazyWithReload(() => import('./pages/MatchResult'))
 const Matches = lazyWithReload(() => import('./pages/Matches'))
 const NotFound = lazyWithReload(() => import('./pages/NotFound'))
 const Profile = lazyWithReload(() => import('./pages/Profile'))
@@ -117,6 +118,14 @@ export default function App() {
               element={
                 <LazyPage>
                   <MatchDetails />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="matches/:matchId/result"
+              element={
+                <LazyPage>
+                  <MatchResult />
                 </LazyPage>
               }
             />

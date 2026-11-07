@@ -476,7 +476,7 @@ export default function Matches() {
                     )}
                   </div>
 
-                  <div className="border-t border-white/[0.07] px-5 py-3">
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.07] px-5 py-3">
                     <Link
                       to={`/matches/${match.id}`}
                       className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
@@ -484,6 +484,15 @@ export default function Matches() {
                       فتح تفاصيل المباراة
                       <ArrowLeft className="size-3.5" />
                     </Link>
+                    {result ? (
+                      <Link
+                        to={`/matches/${match.id}/result`}
+                        className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-white/55 transition-colors hover:text-white"
+                      >
+                        <Trophy className="size-3.5" />
+                        النتيجة والتقييمات
+                      </Link>
+                    ) : null}
                   </div>
                 </Card>
               )

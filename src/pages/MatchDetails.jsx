@@ -367,6 +367,7 @@ export default function MatchDetails() {
   const [statsSuccess, setStatsSuccess] = useState('')
   const [ratingLinkCopied, setRatingLinkCopied] = useState(false)
   const [registerLinkCopied, setRegisterLinkCopied] = useState(false)
+  const [resultLinkCopied, setResultLinkCopied] = useState(false)
   const [myRegistrationBusy, setMyRegistrationBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
@@ -1026,6 +1027,10 @@ export default function MatchDetails() {
     return `${window.location.origin}${window.location.pathname}#/matches/${matchId}?register=1`
   }
 
+  function getResultLink() {
+    return `${window.location.origin}${window.location.pathname}#/matches/${matchId}/result`
+  }
+
   async function copyLinkText(text, onCopied) {
     try {
       await navigator.clipboard.writeText(text)
@@ -1045,6 +1050,10 @@ export default function MatchDetails() {
 
   async function handleCopyRegisterLink() {
     await copyLinkText(getRegisterLink(), setRegisterLinkCopied)
+  }
+
+  async function handleCopyResultLink() {
+    await copyLinkText(getResultLink(), setResultLinkCopied)
   }
 
   async function handleDeleteMatch() {
@@ -1513,6 +1522,42 @@ export default function MatchDetails() {
           </div>
           <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
             {getRegisterLink()}
+          </p>
+        </Card>
+      ) : null}
+
+      {isAdmin && result ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <Trophy className="size-5 text-brand-300" />
+                رابط نتيجة المباراة
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                أرسل هذا الرابط للفريق بعد نهاية المباراة؛ سيفتح صفحة النتيجة الجميلة مع زر تقييم اللاعبين.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+              <button
+                type="button"
+                onClick={() => void handleCopyResultLink()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+              >
+                {resultLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                {resultLinkCopied ? 'تم نسخ الرابط' : 'نسخ رابط النتيجة'}
+              </button>
+              <Link
+                to={`/matches/${matchId}/result`}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
+              >
+                فتح صفحة النتيجة
+                <ArrowLeft className="size-3.5" />
+              </Link>
+            </div>
+          </div>
+          <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
+            {getResultLink()}
           </p>
         </Card>
       ) : null}
