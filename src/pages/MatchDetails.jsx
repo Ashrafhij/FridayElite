@@ -230,6 +230,7 @@ function PitchPlayerButton({
   jerseyNumber,
   goals,
   assists,
+  showExternalRing,
   selected,
   dropActive,
   draggable,
@@ -253,7 +254,7 @@ function PitchPlayerButton({
         onDrop={onDrop}
         onDragEnd={onDragEnd}
         aria-label={player?.full_name ? `فتح تقييم ${player.full_name}` : 'فتح تقييم اللاعب'}
-        className={`relative grid size-12 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`relative grid size-12 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : showExternalRing ? 'border-red-400 text-red-300 ring-4 ring-red-500/50' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {initial}
         {player?.avatar_url ? (
@@ -367,6 +368,9 @@ export default function MatchDetails() {
   const [pitchSwapBusy, setPitchSwapBusy] = useState(false)
   const [pitchNotice, setPitchNotice] = useState(null)
   const [dragTargetId, setDragTargetId] = useState(null)
+  const [modalSwapTarget, setModalSwapTarget] = useState('')
+  const [modalSwapBusy, setModalSwapBusy] = useState(false)
+  const [modalSwapError, setModalSwapError] = useState('')
 
   useMatchRealtime(matchId)
 
@@ -557,12 +561,20 @@ export default function MatchDetails() {
     queryKey: ['match-player-directory', matchId, playerIds.join('|')],
     enabled: playerIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('player_directory')
-        .select('id,full_name,avatar_url,jersey_number,preferred_foot')
-        .in('id', playerIds)
-      if (error) throw error
-      return data ?? []
+      const selectDirectory = async (columns) => {
+        const { data, error } = await supabase
+          .from('player_directory')
+          .select(columns)
+          .in('id', playerIds)
+        if (error) throw error
+        return data ?? []
+      }
+      // Migration 0014 adds is_external; fall back gracefully before it runs.
+      try {
+        return await selectDirectory('id,full_name,avatar_url,jersey_number,preferred_foot,is_external')
+      } catch {
+        return selectDirectory('id,full_name,avatar_url,jersey_number,preferred_foot')
+      }
     },
     staleTime: 30_000,
   })
@@ -644,6 +656,8 @@ export default function MatchDetails() {
     setStatsAssists(ratingTarget?.statsAssists ?? 0)
     setStatsError('')
     setStatsSuccess('')
+    setModalSwapTarget('')
+    setModalSwapError('')
   }, [ratingTarget?.playerId])
 
   // Players arriving through the admin's rating link land on the pitch.
@@ -806,6 +820,39 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
     ])
     return true
+  }
+
+  async function handleModalSwap(event) {
+    event.preventDefault()
+    if (!match || !ratingTarget || !modalSwapTarget || modalSwapBusy) return
+    const currentId = ratingTarget.playerId
+    const targetId = modalSwapTarget
+    setModalSwapBusy(true)
+    setModalSwapError('')
+
+    const { error } = await supabase.rpc('swap_team_players', {
+      p_match_id: match.id,
+      p_player_a: currentId,
+      p_player_b: targetId,
+    })
+    setModalSwapBusy(false)
+
+    if (error) {
+      setModalSwapError(toArabicError(error, 'تعذر تنفيذ المبادلة.'))
+      return
+    }
+
+    const nameA = directoryById.get(currentId)?.full_name ?? 'لاعب'
+    const nameB = directoryById.get(targetId)?.full_name ?? 'لاعب'
+    setRatingTarget(null)
+    setPitchNotice({ type: 'ok', text: `تم تبديل ${nameA} و${nameB}.` })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
   }
 
   async function handlePitchPlayerPick(playerId) {
@@ -1775,7 +1822,8 @@ export default function MatchDetails() {
                               jerseyNumber={player?.jersey_number}
                               goals={scorerByPlayer.get(registration.player_id)?.goals ?? 0}
                               assists={scorerByPlayer.get(registration.player_id)?.assists ?? 0}
-                              subLabel={allTimeLabel ?? roleLabel(registration.roster_role)}
+                              showExternalRing={isAdmin && Boolean(player?.is_external)}
+                              subLabel={`${allTimeLabel ?? roleLabel(registration.roster_role)}${isAdmin && player?.is_external ? ' · ضيف' : ''}`}
                               selected={ratingTarget?.playerId === registration.player_id}
                               onSelect={() =>
                                 setRatingTarget({
@@ -1855,7 +1903,8 @@ export default function MatchDetails() {
                                     jerseyNumber={player?.jersey_number}
                                     goals={matchScorer?.goals ?? 0}
                                     assists={matchScorer?.assists ?? 0}
-                                    subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
+                                    showExternalRing={isAdmin && Boolean(player?.is_external)}
+                                    subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}${isAdmin && player?.is_external ? ' · ضيف (مرة واحدة)' : ''}`}
                                     selected={ratingTarget?.playerId === assignment.player_id || pitchSwapFirstId === assignment.player_id}
                                     dropActive={dragTargetId === assignment.player_id}
                                     draggable={isAdmin && !pitchSwapBusy}
@@ -1938,6 +1987,11 @@ export default function MatchDetails() {
                       ? `متوسط ${ratingTarget.average.average_rating} من 10 · ${ratingTarget.average.rating_count} تقييم`
                       : `لا توجد تقييمات بعد · ${ratingTarget.positionLabel ?? ''}`}
                   </p>
+                  {isAdmin && ratingTarget.player?.is_external ? (
+                    <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-red-400/40 bg-red-400/10 px-2 py-0.5 text-[10px] font-extrabold text-red-200">
+                      لاعب ضيف — مرة واحدة
+                    </span>
+                  ) : null}
                   {allTimeStatsByPlayer.get(ratingTarget.playerId) ? (
                     <p className="mt-1 text-[11px] text-white/45">
                       كل المباريات: {allTimeStatsByPlayer.get(ratingTarget.playerId).total_goals} هدف ·{' '}
@@ -2051,6 +2105,63 @@ export default function MatchDetails() {
                     أنشئ توزيع الفريقين أولًا لإدخال إحصائيات هذا اللاعب.
                   </p>
                 )}
+              </form>
+            ) : null}
+
+            {isAdmin && assignmentByPlayerId.has(ratingTarget.playerId) ? (
+              <form onSubmit={handleModalSwap} className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <h3 className="flex items-center gap-2 text-sm font-extrabold text-sand-100">
+                  <Shuffle className="size-4 text-brand-300" />
+                  مبادلة هذا اللاعب
+                </h3>
+                <label htmlFor="modal-swap-target" className="mt-3 block text-[11px] font-bold text-white/50">
+                  مبادلة مع
+                </label>
+                <select
+                  id="modal-swap-target"
+                  value={modalSwapTarget}
+                  onChange={(event) => setModalSwapTarget(event.target.value)}
+                  disabled={modalSwapBusy}
+                  required
+                  className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                >
+                  <option value="">اختر لاعبًا</option>
+                  {(() => {
+                    const others = assignments
+                      .filter((assignment) => assignment.player_id !== ratingTarget.playerId)
+                      .map((assignment) => ({
+                        assignment,
+                        player: directoryById.get(assignment.player_id),
+                        team: teamById.get(assignment.team_id),
+                        position: positionByCode.get(assignment.assigned_position_code),
+                      }))
+                    const regular = others.filter((item) => !item.player?.is_external)
+                    const guests = others.filter((item) => item.player?.is_external)
+                    const renderOption = ({ assignment, player, team, position }) => (
+                      <option key={assignment.id} value={assignment.player_id}>
+                        {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''} · {position?.name_ar ?? assignment.assigned_position_code}
+                      </option>
+                    )
+                    return (
+                      <>
+                        {regular.length ? <optgroup label="لاعبون من الفريق">{regular.map(renderOption)}</optgroup> : null}
+                        {guests.length ? <optgroup label="لاعبون ضيوف (مرة واحدة)">{guests.map(renderOption)}</optgroup> : null}
+                      </>
+                    )
+                  })()}
+                </select>
+                {modalSwapError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{modalSwapError}</p> : null}
+                <button
+                  type="submit"
+                  disabled={modalSwapBusy || !modalSwapTarget}
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-brand-400/30 bg-brand-400/10 px-4 py-2.5 text-xs font-extrabold text-brand-200 transition-colors hover:bg-brand-400/20 disabled:opacity-60"
+                >
+                  {modalSwapBusy ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                  تنفيذ المبادلة
+                </button>
+                <p className="mt-2 text-[11px] leading-5 text-white/40">
+                  يعمل داخل نفس الفريق وبين الفريقين ومع اللاعبين الضيوف. لا يمكن مبادلة حارس مرمى مع لاعب ميدان.
+                </p>
               </form>
             ) : null}
 
