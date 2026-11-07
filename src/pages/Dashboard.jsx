@@ -151,9 +151,9 @@ export default function Dashboard() {
     const topAssister = byAssists[0]?.total_assists > 0 ? byAssists[0] : null
     const mostGames = byGames[0]?.games > 0 ? byGames[0] : null
 
-    const topScorers = byGoals.filter((item) => item.total_goals > 0).slice(0, 5)
-    const topAssisters = byAssists.filter((item) => item.total_assists > 0).slice(0, 5)
-    const topByGames = byGames.filter((item) => item.games > 0).slice(0, 5)
+    const topScorers = byGoals.filter((item) => item.total_goals > 0)
+    const topAssisters = byAssists.filter((item) => item.total_assists > 0)
+    const topByGames = byGames.filter((item) => item.games > 0)
 
     return { directoryById, statsByPlayer, topScorer, topAssister, mostGames, topScorers, topAssisters, topByGames }
   }, [allTimeStatsQuery.data, allTimePlayersQuery.data, gamesPlayedByPlayer])
@@ -358,7 +358,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 max-h-[480px] space-y-2 overflow-y-auto pe-1">
                 {activeRanking.map((row, index) => {
                   const playerId = row.player_id ?? row.playerId
                   const stat = leaders.statsByPlayer.get(playerId)
