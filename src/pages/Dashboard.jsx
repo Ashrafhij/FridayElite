@@ -362,8 +362,10 @@ export default function Dashboard() {
                 {activeRanking.map((row, index) => {
                   const playerId = row.player_id ?? row.playerId
                   const stat = leaders.statsByPlayer.get(playerId)
-                  const games = row.games ?? stat?.matches_with_stats ?? 0
+                  const games = row.games ?? gamesPlayedByPlayer.get(playerId) ?? stat?.matches_with_stats ?? 0
                   const player = leaders.directoryById.get(playerId)
+                  const goals = stat?.total_goals ?? 0
+                  const assists = stat?.total_assists ?? 0
                   return (
                     <div key={playerId} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3 py-2">
                       <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-white/5 text-xs font-black text-white/55">
@@ -374,29 +376,29 @@ export default function Dashboard() {
                         <p className="truncate text-xs font-extrabold text-sand-100">{player?.full_name ?? 'لاعب'}</p>
                         <p className="mt-0.5 text-[10px] text-white/40">
                           {leadersTab === 'goals'
-                            ? `${stat?.total_goals ?? 0} هدف · ${stat?.total_assists ?? 0} تمريرة`
+                            ? `${goals} هدف · ${games} مباراة`
                             : leadersTab === 'assists'
-                              ? `${stat?.total_assists ?? 0} تمريرة · ${stat?.total_goals ?? 0} هدف`
-                              : `${games} مباراة`}
+                              ? `${assists} تمريرة · ${games} مباراة`
+                              : `${games} مباراة · ${goals} هدف · ${assists} تمريرة`}
                         </p>
                       </div>
                       <span className="flex shrink-0 items-center gap-1">
-                        {stat?.total_goals ? (
+                        {leadersTab !== 'assists' && goals ? (
                           <span
-                            title={`${stat.total_goals} هدف`}
+                            title={`${goals} هدف`}
                             className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'goals' ? 'bg-white ring-2 ring-brand-400/60' : 'bg-white/85'}`}
                           >
                             <Volleyball className="size-2.5" />
-                            {stat.total_goals}
+                            {goals}
                           </span>
                         ) : null}
-                        {stat?.total_assists ? (
+                        {leadersTab !== 'goals' && assists ? (
                           <span
-                            title={`${stat.total_assists} تمريرة`}
+                            title={`${assists} تمريرة`}
                             className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'assists' ? 'bg-brand-300 ring-2 ring-white/40' : 'bg-brand-300/85'}`}
                           >
                             <Footprints className="size-2.5" />
-                            {stat.total_assists}
+                            {assists}
                           </span>
                         ) : null}
                         <span
