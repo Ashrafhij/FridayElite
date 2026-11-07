@@ -1782,9 +1782,6 @@ export default function MatchDetails() {
               <Users className="size-5 text-brand-300" />
               الميدان
             </h2>
-            <p className="mt-1 text-sm text-white/45">
-              اضغط على أي لاعب لتقييمه من 1 إلى 10. الإدارة: اضغط على لاعب لإدخال أهدافه وتمريراته مباشرة.
-            </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             <Badge variant={canRate ? 'brand' : 'neutral'}>
@@ -1807,12 +1804,6 @@ export default function MatchDetails() {
             ) : null}
           </div>
         </div>
-
-        {isAdmin && teams.length ? (
-          <p className="mb-4 text-[11px] leading-5 text-white/40">
-            للمبادلة: اسحب أي لاعب وأفلته على لاعب آخر، أو فعّل «مبادلة اللاعبين» ثم اضغط على لاعبين — يعمل في نفس الفريق وبين الفريقين.
-          </p>
-        ) : null}
 
         {swapMode && isAdmin && teams.length ? (
           <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-400/25 bg-brand-400/[0.08] px-4 py-3 text-xs font-bold leading-6 text-brand-100">
