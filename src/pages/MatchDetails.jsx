@@ -230,6 +230,7 @@ function PitchPlayerButton({
   jerseyNumber,
   goals,
   assists,
+  isMvp,
   showExternalRing,
   selected,
   dropActive,
@@ -304,6 +305,15 @@ function PitchPlayerButton({
             aria-hidden="true"
           >
             {formatRating(averageRating)}
+          </span>
+        ) : null}
+        {isMvp ? (
+          <span
+            title="نجم المباراة (MVP)"
+            className="absolute -bottom-2 -left-2 z-10 grid size-7 place-items-center rounded-full border border-pitch-950/30 bg-brand-400 text-pitch-950 shadow ring-2 ring-brand-300/70"
+            aria-hidden="true"
+          >
+            <Star className="size-4" />
           </span>
         ) : null}
       </button>
@@ -661,6 +671,7 @@ export default function MatchDetails() {
   const myRatingsByPlayer = new Map((myRatingsQuery.data ?? []).map((item) => [item.rated_player_id, item.rating]))
   const ratingStatsByPlayer = new Map((ratingStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const allTimeStatsByPlayer = new Map((allTimeStatsQuery.data ?? []).map((item) => [item.player_id, item]))
+  const mvpPlayerId = (ratingStatsQuery.data ?? [])[0]?.player_id ?? null
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
   const myRegistration = registrations.find(
     (item) => item.player_id === profile?.id && item.status !== 'cancelled',
@@ -2041,6 +2052,7 @@ export default function MatchDetails() {
                               jerseyNumber={player?.jersey_number}
                               goals={scorerByPlayer.get(registration.player_id)?.goals ?? 0}
                               assists={scorerByPlayer.get(registration.player_id)?.assists ?? 0}
+                              isMvp={registration.player_id === mvpPlayerId}
                               showExternalRing={isAdmin && Boolean(player?.is_external)}
                               subLabel={`${allTimeLabel ?? roleLabel(registration.roster_role)}${isAdmin && player?.is_external ? ' · ضيف' : ''}`}
                               selected={ratingTarget?.playerId === registration.player_id}
@@ -2122,6 +2134,7 @@ export default function MatchDetails() {
                                     jerseyNumber={player?.jersey_number}
                                     goals={matchScorer?.goals ?? 0}
                                     assists={matchScorer?.assists ?? 0}
+                                    isMvp={assignment.player_id === mvpPlayerId}
                                     showExternalRing={isAdmin && Boolean(player?.is_external)}
                                     subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}${isAdmin && player?.is_external ? ' · ضيف (مرة واحدة)' : ''}`}
                                     selected={ratingTarget?.playerId === assignment.player_id || pitchSwapFirstId === assignment.player_id}
