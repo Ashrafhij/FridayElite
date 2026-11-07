@@ -10,6 +10,7 @@ import {
   Lock,
   MapPin,
   Sparkles,
+  Star,
   Trophy,
   Volleyball,
 } from 'lucide-react'
@@ -104,14 +105,51 @@ export default function Dashboard() {
     return counts
   }, [gamesPlayedQuery.data])
 
+  const mvpStatsQuery = useQuery({
+    queryKey: ['dashboard-mvp-stats'],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from('match_player_rating_stats')
+          .select('match_id,player_id,average_rating,rating_count')
+        if (error) throw error
+        return data ?? []
+      } catch {
+        return []
+      }
+    },
+    staleTime: 60_000,
+  })
+
+  const mvpAwardsByPlayer = useMemo(() => {
+    const bestByMatch = new Map()
+    for (const stat of mvpStatsQuery.data ?? []) {
+      const best = bestByMatch.get(stat.match_id)
+      if (
+        !best ||
+        Number(stat.average_rating) > Number(best.average_rating) ||
+        (Number(stat.average_rating) === Number(best.average_rating) &&
+          stat.rating_count > best.rating_count)
+      ) {
+        bestByMatch.set(stat.match_id, stat)
+      }
+    }
+    const awards = new Map()
+    for (const best of bestByMatch.values()) {
+      awards.set(best.player_id, (awards.get(best.player_id) ?? 0) + 1)
+    }
+    return awards
+  }, [mvpStatsQuery.data])
+
   const allTimePlayerIds = useMemo(
     () => [
       ...new Set([
         ...(allTimeStatsQuery.data ?? []).map((item) => item.player_id),
         ...gamesPlayedByPlayer.keys(),
+        ...mvpAwardsByPlayer.keys(),
       ]),
     ],
-    [allTimeStatsQuery.data, gamesPlayedByPlayer],
+    [allTimeStatsQuery.data, gamesPlayedByPlayer, mvpAwardsByPlayer],
   )
 
   const allTimePlayersQuery = useQuery({
@@ -150,15 +188,19 @@ export default function Dashboard() {
     const topScorer = byGoals[0]?.total_goals > 0 ? byGoals[0] : null
     const topAssister = byAssists[0]?.total_assists > 0 ? byAssists[0] : null
     const mostGames = byGames[0]?.games > 0 ? byGames[0] : null
+    const topByMvp = [...mvpAwardsByPlayer.entries()]
+      .map(([playerId, awards]) => ({ playerId, awards }))
+      .sort((a, b) => b.awards - a.awards)
+    const mostMvp = topByMvp[0]?.awards > 0 ? topByMvp[0] : null
 
     const topScorers = byGoals.filter((item) => item.total_goals > 0)
     const topAssisters = byAssists.filter((item) => item.total_assists > 0)
     const topByGames = byGames.filter((item) => item.games > 0)
 
-    return { directoryById, statsByPlayer, topScorer, topAssister, mostGames, topScorers, topAssisters, topByGames }
-  }, [allTimeStatsQuery.data, allTimePlayersQuery.data, gamesPlayedByPlayer])
+    return { directoryById, statsByPlayer, topScorer, topAssister, mostGames, mostMvp, topScorers, topAssisters, topByGames, topByMvp }
+  }, [allTimeStatsQuery.data, allTimePlayersQuery.data, gamesPlayedByPlayer, mvpAwardsByPlayer])
 
-  const hasAllTimeStats = Boolean(leaders.topScorer || leaders.topAssister || leaders.mostGames)
+  const hasAllTimeStats = Boolean(leaders.topScorer || leaders.topAssister || leaders.mostGames || leaders.mostMvp)
   const [leadersTab, setLeadersTab] = useState('goals')
 
   const activeRanking =
@@ -166,7 +208,9 @@ export default function Dashboard() {
       ? leaders.topAssisters
       : leadersTab === 'games'
         ? leaders.topByGames
-        : leaders.topScorers
+        : leadersTab === 'mvp'
+          ? leaders.topByMvp
+          : leaders.topScorers
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -262,7 +306,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {leaders.topScorer ? (
               <Card className="border-brand-400/20 p-5">
                 <span className="grid size-10 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
@@ -324,6 +368,26 @@ export default function Dashboard() {
                 </div>
               </Card>
             ) : null}
+            {leaders.mostMvp ? (
+              <Card className="border-brand-400/20 p-5">
+                <span className="grid size-10 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
+                  <Star className="size-5" />
+                </span>
+                <p className="mt-3 text-[11px] font-bold text-white/45">الأكثر حصولًا على نجم المباراة</p>
+                <div className="mt-1.5 flex items-center gap-2.5">
+                  <LeaderAvatar player={leaders.directoryById.get(leaders.mostMvp.playerId)} size={40} />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-extrabold text-sand-100">
+                      {leaders.directoryById.get(leaders.mostMvp.playerId)?.full_name ?? 'لاعب'}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-white/45">
+                      <span className="font-black text-brand-200">{leaders.mostMvp.awards}</span>{' '}
+                      {leaders.mostMvp.awards === 1 ? 'مرة نجم المباراة' : 'مرات نجم المباراة'}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ) : null}
           </div>
 
           {activeRanking.length ? (
@@ -335,13 +399,16 @@ export default function Dashboard() {
                     ? 'قائمة صناع الألعاب التاريخيين'
                     : leadersTab === 'games'
                       ? 'قائمة الأكثر مشاركة'
-                      : 'قائمة الهدافين التاريخيين'}
+                      : leadersTab === 'mvp'
+                        ? 'قائمة نجوم المباراة'
+                        : 'قائمة الهدافين التاريخيين'}
                 </h3>
-                <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-pitch-950/50 p-1" role="tablist" aria-label="ترتيب الإحصائيات">
+                <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 bg-pitch-950/50 p-1" role="tablist" aria-label="ترتيب الإحصائيات">
                   {[
                     { key: 'goals', label: 'أهداف', icon: Volleyball },
                     { key: 'assists', label: 'تمريرات', icon: Footprints },
                     { key: 'games', label: 'مباريات', icon: History },
+                    { key: 'mvp', label: 'نجم المباراة', icon: Star },
                   ].map(({ key, label, icon: Icon }) => (
                     <button
                       key={key}
@@ -363,6 +430,7 @@ export default function Dashboard() {
                   const playerId = row.player_id ?? row.playerId
                   const stat = leaders.statsByPlayer.get(playerId)
                   const games = row.games ?? gamesPlayedByPlayer.get(playerId) ?? stat?.matches_with_stats ?? 0
+                  const awards = row.awards ?? 0
                   const player = leaders.directoryById.get(playerId)
                   const goals = stat?.total_goals ?? 0
                   const assists = stat?.total_assists ?? 0
@@ -379,11 +447,19 @@ export default function Dashboard() {
                             ? `${goals} هدف · ${games} مباراة`
                             : leadersTab === 'assists'
                               ? `${assists} تمريرة · ${games} مباراة`
-                              : `${games} مباراة · ${goals} هدف · ${assists} تمريرة`}
+                              : leadersTab === 'mvp'
+                                ? `${awards} ${awards === 1 ? 'مرة نجم المباراة' : 'مرات نجم المباراة'} · ${games} مباراة`
+                                : `${games} مباراة · ${goals} هدف · ${assists} تمريرة`}
                         </p>
                       </div>
                       <span className="flex shrink-0 items-center gap-1">
-                        {leadersTab !== 'assists' && goals ? (
+                        {leadersTab === 'mvp' && awards ? (
+                          <span title={`${awards} ${awards === 1 ? 'مرة نجم المباراة' : 'مرات نجم المباراة'}`} className="flex h-5 items-center gap-0.5 rounded-full bg-brand-400 px-1.5 text-[10px] font-black text-pitch-950 ring-2 ring-white/40">
+                            <Star className="size-2.5" />
+                            {awards}
+                          </span>
+                        ) : null}
+                        {leadersTab !== 'assists' && leadersTab !== 'mvp' && goals ? (
                           <span
                             title={`${goals} هدف`}
                             className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'goals' ? 'bg-white ring-2 ring-brand-400/60' : 'bg-white/85'}`}
@@ -392,7 +468,7 @@ export default function Dashboard() {
                             {goals}
                           </span>
                         ) : null}
-                        {leadersTab !== 'goals' && assists ? (
+                        {leadersTab !== 'goals' && leadersTab !== 'mvp' && assists ? (
                           <span
                             title={`${assists} تمريرة`}
                             className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'assists' ? 'bg-brand-300 ring-2 ring-white/40' : 'bg-brand-300/85'}`}

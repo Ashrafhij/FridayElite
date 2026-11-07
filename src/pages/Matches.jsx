@@ -10,6 +10,7 @@ import {
   Lock,
   MapPin,
   RotateCcw,
+  Star,
   Trophy,
   UserMinus,
   UserPlus,
@@ -135,7 +136,30 @@ export default function Matches() {
     staleTime: 30_000,
   })
 
-  const scorerPlayerIds = [...new Set((pastScorersQuery.data ?? []).map((scorer) => scorer.player_id))]
+  const pastRatingStatsQuery = useQuery({
+    queryKey: ['past-match-rating-stats', resultMatchIds.join('|')],
+    enabled: resultMatchIds.length > 0,
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from('match_player_rating_stats')
+          .select('match_id,player_id,average_rating,rating_count')
+          .in('match_id', resultMatchIds)
+        if (error) throw error
+        return data ?? []
+      } catch {
+        return []
+      }
+    },
+    staleTime: 30_000,
+  })
+
+  const scorerPlayerIds = [
+    ...new Set([
+      ...(pastScorersQuery.data ?? []).map((scorer) => scorer.player_id),
+      ...(pastRatingStatsQuery.data ?? []).map((stat) => stat.player_id),
+    ]),
+  ]
   const scorerNamesQuery = useQuery({
     queryKey: ['past-scorer-names', scorerPlayerIds.join('|')],
     enabled: scorerPlayerIds.length > 0,
@@ -162,6 +186,19 @@ export default function Matches() {
     scorersByMatchId.get(scorer.match_id).push(scorer)
   }
   const scorerNameById = new Map((scorerNamesQuery.data ?? []).map((player) => [player.id, player.full_name]))
+
+  const mvpByMatchId = new Map()
+  for (const stat of pastRatingStatsQuery.data ?? []) {
+    const best = mvpByMatchId.get(stat.match_id)
+    if (
+      !best ||
+      Number(stat.average_rating) > Number(best.average_rating) ||
+      (Number(stat.average_rating) === Number(best.average_rating) &&
+        stat.rating_count > best.rating_count)
+    ) {
+      mvpByMatchId.set(stat.match_id, stat)
+    }
+  }
 
   return (
     <div>
@@ -452,6 +489,12 @@ export default function Matches() {
                           <span>
                             انتظار <span className="font-black text-white/65">{stats?.waitlisted_count ?? 0}</span>
                           </span>
+                          {mvpByMatchId.has(match.id) ? (
+                            <span className="inline-flex items-center gap-1 text-brand-200">
+                              <Star className="size-3" />
+                              نجم المباراة: <span className="font-black">{scorerNameById.get(mvpByMatchId.get(match.id).player_id) ?? 'لاعب'}</span>
+                            </span>
+                          ) : null}
                         </div>
                       </>
                     ) : (

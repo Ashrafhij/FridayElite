@@ -382,6 +382,29 @@ export default function MatchResult() {
           </section>
 
           {ratingStats.length ? (
+            <Card className="mt-6 flex flex-col items-center gap-4 border-brand-400/25 bg-brand-400/[0.05] p-5 text-center sm:flex-row sm:text-start">
+              <span className="grid size-16 shrink-0 place-items-center rounded-full bg-brand-400 text-pitch-950 shadow-glow">
+                <Star className="size-8" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-extrabold text-brand-300">نجم المباراة (MVP)</p>
+                <p className="mt-1 truncate text-xl font-black text-sand-100">
+                  {directoryById.get(ratingStats[0].player_id)?.full_name ?? 'لاعب'}
+                </p>
+                <p className="mt-0.5 text-[11px] text-white/45">
+                  من {ratingStats[0].rating_count} تقييم · أعلى متوسط في المباراة
+                </p>
+              </div>
+              <span
+                className="shrink-0 rounded-full px-4 py-2 text-2xl font-black text-white"
+                style={{ backgroundColor: ratingColor(ratingStats[0].average_rating) }}
+              >
+                {Number(ratingStats[0].average_rating).toFixed(1)}
+              </span>
+            </Card>
+          ) : null}
+
+          {ratingStats.length ? (
             <section className="mt-8" aria-label="أعلى التقييمات">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>

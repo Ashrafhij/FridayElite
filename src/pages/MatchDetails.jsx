@@ -1984,6 +1984,25 @@ export default function MatchDetails() {
                       {result.notes}
                     </p>
                   ) : null}
+
+                  {ratingStatsByPlayer.size ? (
+                    <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-brand-400/25 bg-brand-400/[0.06] px-4 py-3 text-center">
+                      <Star className="size-4 shrink-0 text-brand-300" />
+                      <p className="text-xs font-bold text-white/70">
+                        نجم المباراة:{' '}
+                        <span className="font-black text-sand-100">
+                          {(() => {
+                            const best = [...ratingStatsByPlayer.entries()].sort(
+                              (a, b) =>
+                                Number(b[1].average_rating) - Number(a[1].average_rating) ||
+                                b[1].rating_count - a[1].rating_count,
+                            )[0]
+                            return directoryById.get(best?.[0])?.full_name ?? 'لاعب'
+                          })()}
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : registrationsQuery.isLoading ? (
