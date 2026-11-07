@@ -8,6 +8,7 @@ import {
   Check,
   Clock,
   Copy,
+  Footprints,
   History,
   Link2,
   Loader2,
@@ -25,6 +26,7 @@ import {
   UserCheck,
   UserPlus,
   UserRound,
+  Volleyball,
   XCircle,
 } from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
@@ -102,6 +104,19 @@ function roleLabel(role) {
   if (role === 'gk') return 'حارس مرمى'
   if (role === 'outfield') return 'لاعب ميدان'
   return '—'
+}
+
+function ratingColor(rating) {
+  const value = Number(rating)
+  if (Number.isNaN(value)) return '#9ca3af'
+  if (value >= 7.5) return '#22c55e'
+  if (value >= 6.5) return '#f59e0b'
+  return '#ef4444'
+}
+
+function formatRating(rating) {
+  const value = Number(rating)
+  return Number.isNaN(value) ? rating : value.toFixed(1)
 }
 
 function Avatar({ player, size = 40 }) {
@@ -212,6 +227,9 @@ function PitchPlayerButton({
   subLabel,
   averageRating,
   myRating,
+  jerseyNumber,
+  goals,
+  assists,
   selected,
   dropActive,
   draggable,
@@ -222,6 +240,8 @@ function PitchPlayerButton({
   onDragEnd,
 }) {
   const initial = player?.full_name?.trim()?.charAt(0) || '؟'
+  const goalsCount = Number(goals ?? 0)
+  const assistsCount = Number(assists ?? 0)
   return (
     <div className="flex min-w-0 flex-col items-center gap-1.5">
       <button
@@ -233,7 +253,7 @@ function PitchPlayerButton({
         onDrop={onDrop}
         onDragEnd={onDragEnd}
         aria-label={player?.full_name ? `فتح تقييم ${player.full_name}` : 'فتح تقييم اللاعب'}
-        className={`relative grid size-12 place-items-center overflow-hidden rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`relative grid size-12 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {initial}
         {player?.avatar_url ? (
@@ -243,15 +263,46 @@ function PitchPlayerButton({
             loading="lazy"
             decoding="async"
             draggable={false}
-            className="absolute inset-0 size-full object-cover"
+            className="absolute inset-0 size-full rounded-full object-cover"
             onError={(event) => {
               event.currentTarget.style.display = 'none'
             }}
           />
         ) : null}
+        {goalsCount > 0 || assistsCount > 0 ? (
+          <span className="absolute -top-1.5 -left-2 z-10 flex items-center gap-0.5" aria-hidden="true">
+            {goalsCount > 0 ? (
+              <span
+                title={`${goalsCount} هدف`}
+                className="flex size-5 items-center justify-center gap-px rounded-full bg-white text-pitch-950 shadow"
+              >
+                <Volleyball className="size-2.5" />
+                <span className="text-[8px] leading-none font-black">{goalsCount}</span>
+              </span>
+            ) : null}
+            {assistsCount > 0 ? (
+              <span
+                title={`${assistsCount} تمريرة`}
+                className="flex size-5 items-center justify-center gap-px rounded-full bg-brand-300 text-pitch-950 shadow"
+              >
+                <Footprints className="size-2.5" />
+                <span className="text-[8px] leading-none font-black">{assistsCount}</span>
+              </span>
+            ) : null}
+          </span>
+        ) : null}
+        {jerseyNumber ? (
+          <span className="absolute -top-1.5 -right-1.5 z-10 grid size-5 place-items-center rounded-full bg-white text-[9px] leading-none font-black text-pitch-950 shadow" aria-hidden="true">
+            {jerseyNumber}
+          </span>
+        ) : null}
         {averageRating ? (
-          <span className="absolute -end-0.5 -top-0.5 grid min-w-6 place-items-center rounded-full border border-pitch-950 bg-brand-400 px-1 py-0.5 text-[9px] leading-none font-black text-pitch-950">
-            {averageRating}
+          <span
+            className="absolute -right-2 -bottom-1.5 z-10 rounded-full px-1.5 py-0.5 text-[9px] leading-none font-black text-white shadow"
+            style={{ backgroundColor: ratingColor(averageRating) }}
+            aria-hidden="true"
+          >
+            {formatRating(averageRating)}
           </span>
         ) : null}
       </button>
@@ -1721,6 +1772,9 @@ export default function MatchDetails() {
                               player={player}
                               averageRating={stat?.average_rating}
                               myRating={myRatingsByPlayer.get(registration.player_id) ?? 0}
+                              jerseyNumber={player?.jersey_number}
+                              goals={scorerByPlayer.get(registration.player_id)?.goals ?? 0}
+                              assists={scorerByPlayer.get(registration.player_id)?.assists ?? 0}
                               subLabel={allTimeLabel ?? roleLabel(registration.roster_role)}
                               selected={ratingTarget?.playerId === registration.player_id}
                               onSelect={() =>
@@ -1791,26 +1845,17 @@ export default function MatchDetails() {
                                 const player = directoryById.get(assignment.player_id)
                                 const position = positionByCode.get(assignment.assigned_position_code)
                                 const stat = ratingStatsByPlayer.get(assignment.player_id)
-                                const allTime = allTimeStatsByPlayer.get(assignment.player_id)
-                                const allTimeLabel = allTime && (allTime.total_goals || allTime.total_assists)
-                                  ? `${allTime.total_goals} هدف · ${allTime.total_assists} تمريرة`
-                                  : null
                                 const matchScorer = scorerByPlayer.get(assignment.player_id)
-                                const matchStatsLabel = matchScorer
-                                  ? [
-                                      matchScorer.goals ? `${matchScorer.goals} هدف` : null,
-                                      matchScorer.assists ? `${matchScorer.assists} تمريرة` : null,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(' · ')
-                                  : null
                                 return (
                                   <PitchPlayerButton
                                     key={assignment.id}
                                     player={player}
                                     averageRating={stat?.average_rating}
                                     myRating={myRatingsByPlayer.get(assignment.player_id) ?? 0}
-                                    subLabel={matchStatsLabel ?? allTimeLabel ?? `${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
+                                    jerseyNumber={player?.jersey_number}
+                                    goals={matchScorer?.goals ?? 0}
+                                    assists={matchScorer?.assists ?? 0}
+                                    subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
                                     selected={ratingTarget?.playerId === assignment.player_id || pitchSwapFirstId === assignment.player_id}
                                     dropActive={dragTargetId === assignment.player_id}
                                     draggable={isAdmin && !pitchSwapBusy}
