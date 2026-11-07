@@ -1,15 +1,20 @@
-import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  Check,
   Clock,
+  Copy,
   History,
+  Link2,
   Loader2,
   Lock,
   MapPin,
+  Minus,
+  Palette,
   Plus,
   RotateCcw,
   Shuffle,
@@ -43,6 +48,16 @@ const STATUS_LABELS = {
   cancelled: 'أُلغيت',
   draft: 'مسودة',
 }
+
+const TEAM_COLOR_PRESETS = [
+  { label: 'أصفر', value: '#ffd60a' },
+  { label: 'أزرق', value: '#2f7bff' },
+  { label: 'أخضر', value: '#d2ff4d' },
+  { label: 'أحمر', value: '#ff4d4d' },
+  { label: 'أبيض', value: '#f5f3ea' },
+  { label: 'برتقالي', value: '#ff9500' },
+  { label: 'بنفسجي', value: '#a78bfa' },
+]
 
 function formatDateTime(value) {
   if (!value) return '—'
@@ -233,8 +248,11 @@ function PitchPlayerButton({ player, subLabel, averageRating, myRating, selected
 
 export default function MatchDetails() {
   const { matchId } = useParams()
+  const [searchParams] = useSearchParams()
+  const isRateMode = searchParams.get('rate') === '1'
   const { isAdmin, profile } = useAuth()
   const queryClient = useQueryClient()
+  const pitchRef = useRef(null)
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
   const [generateSuccess, setGenerateSuccess] = useState('')
@@ -263,6 +281,17 @@ export default function MatchDetails() {
   const [cancelRegistrationId, setCancelRegistrationId] = useState(null)
   const [registrationError, setRegistrationError] = useState('')
   const [registrationSuccess, setRegistrationSuccess] = useState('')
+  const [teamColorA, setTeamColorA] = useState('')
+  const [teamColorB, setTeamColorB] = useState('')
+  const [colorBusy, setColorBusy] = useState(false)
+  const [colorError, setColorError] = useState('')
+  const [colorSuccess, setColorSuccess] = useState('')
+  const [statsGoals, setStatsGoals] = useState(0)
+  const [statsAssists, setStatsAssists] = useState(0)
+  const [statsBusy, setStatsBusy] = useState(false)
+  const [statsError, setStatsError] = useState('')
+  const [statsSuccess, setStatsSuccess] = useState('')
+  const [ratingLinkCopied, setRatingLinkCopied] = useState(false)
 
   useMatchRealtime(matchId)
 
@@ -515,6 +544,8 @@ export default function MatchDetails() {
   const canRate = Boolean(match?.status === 'completed' && currentUserRegistration)
   const teams = teamsQuery.data ?? []
   const teamById = new Map(teams.map((team) => [team.id, team]))
+  const scorerByPlayer = new Map(matchScorers.map((scorer) => [scorer.player_id, scorer]))
+  const assignmentByPlayerId = new Map(assignments.map((assignment) => [assignment.player_id, assignment]))
   const assignedPlayerOptions = assignments.map((assignment) => ({
     assignment,
     player: directoryById.get(assignment.player_id),
@@ -523,6 +554,29 @@ export default function MatchDetails() {
   const canGenerateTeams = Boolean(
     isAdmin && match && confirmedCount === 18 && !['cancelled', 'completed'].includes(match.status),
   )
+
+  // Keep the color pickers in sync with the generated teams.
+  useEffect(() => {
+    const teamA = teams.find((team) => team.side === 'A')
+    const teamB = teams.find((team) => team.side === 'B')
+    if (teamA?.color) setTeamColorA(teamA.color)
+    if (teamB?.color) setTeamColorB(teamB.color)
+  }, [teams])
+
+  // Pre-fill the quick-stats editor when the admin opens a player.
+  useEffect(() => {
+    setStatsGoals(ratingTarget?.statsGoals ?? 0)
+    setStatsAssists(ratingTarget?.statsAssists ?? 0)
+    setStatsError('')
+    setStatsSuccess('')
+  }, [ratingTarget?.playerId])
+
+  // Players arriving through the admin's rating link land on the pitch.
+  useEffect(() => {
+    if (isRateMode) {
+      pitchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [isRateMode])
 
   async function handleGenerateTeams() {
     if (!match || !canGenerateTeams) return
@@ -578,6 +632,88 @@ export default function MatchDetails() {
       queryClient.invalidateQueries({ queryKey: ['team-assignments', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
     ])
+  }
+
+  async function handleSetTeamColors(event) {
+    event.preventDefault()
+    if (!match || !teamColorA || !teamColorB) return
+    setColorBusy(true)
+    setColorError('')
+    setColorSuccess('')
+
+    const { error } = await supabase.rpc('set_match_team_colors', {
+      p_match_id: match.id,
+      p_team_a_color: teamColorA,
+      p_team_b_color: teamColorB,
+    })
+    setColorBusy(false)
+
+    if (error) {
+      setColorError(toArabicError(error, 'تعذر حفظ ألوان الفريقين.'))
+      return
+    }
+
+    setColorSuccess('تم حفظ ألوان الفريقين.')
+    await queryClient.invalidateQueries({ queryKey: ['match-teams', matchId] })
+  }
+
+  async function handleSavePlayerStats(event) {
+    event.preventDefault()
+    if (!match || !ratingTarget) return
+    setStatsBusy(true)
+    setStatsError('')
+    setStatsSuccess('')
+
+    const { error } = await supabase.rpc('set_player_match_stats', {
+      p_match_id: match.id,
+      p_player_id: ratingTarget.playerId,
+      p_goals: statsGoals,
+      p_assists: statsAssists,
+    })
+    setStatsBusy(false)
+
+    if (error) {
+      setStatsError(toArabicError(error, 'تعذر حفظ إحصائيات اللاعب.'))
+      return
+    }
+
+    setStatsSuccess(
+      statsGoals === 0 && statsAssists === 0
+        ? 'تمت إزالة إحصائيات هذا اللاعب.'
+        : 'تم حفظ أهداف وتمريرات اللاعب وتحديث النتيجة.',
+    )
+    setRatingTarget((current) =>
+      current ? { ...current, statsGoals, statsAssists } : current,
+    )
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-scorers', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-result', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  function getRatingLink() {
+    return `${window.location.origin}${window.location.pathname}#/matches/${matchId}?rate=1`
+  }
+
+  async function handleCopyRatingLink() {
+    const link = getRatingLink()
+    try {
+      await navigator.clipboard.writeText(link)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = link
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      textarea.remove()
+    }
+    setRatingLinkCopied(true)
+    window.setTimeout(() => setRatingLinkCopied(false), 2500)
   }
 
   async function handleAddExternalPlayer(event) {
@@ -701,7 +837,14 @@ export default function MatchDetails() {
       scoreB < 0 ||
       scoreA > 99 ||
       scoreB > 99 ||
-      scorerPayload.some((scorer) => scorer.goals < 1 || scorer.goals > 30 || scorer.assists < 0 || scorer.assists > 30)
+      scorerPayload.some(
+        (scorer) =>
+          scorer.goals < 0 ||
+          scorer.goals > 30 ||
+          scorer.assists < 0 ||
+          scorer.assists > 30 ||
+          (scorer.goals === 0 && scorer.assists === 0),
+      )
     ) {
       setResultError('تحقق من النتيجة وعدد الأهداف/التمريرات.')
       return
@@ -984,6 +1127,123 @@ export default function MatchDetails() {
         </Card>
       ) : null}
 
+      {isAdmin && teams.length ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <Palette className="size-5 text-brand-300" />
+                ألوان الفرق
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                اختر لون كل فريق (مثلًا الفريق الأصفر والأزرق). يُطبَّق فورًا على هذه المباراة ويصبح اللون الافتراضي للمباريات القادمة.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTeamColorA(teamColorB)
+                setTeamColorB(teamColorA)
+              }}
+              disabled={colorBusy || !teamColorA || !teamColorB}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60"
+            >
+              <RotateCcw className="size-4" />
+              تبديل الألوان
+            </button>
+          </div>
+
+          <form onSubmit={handleSetTeamColors} className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <label htmlFor="team-color-a" className="flex items-center gap-2 text-xs font-bold text-white/55">
+                <span className="size-3.5 rounded-full border border-white/20" style={{ backgroundColor: teamColorA || '#d2ff4d' }} aria-hidden="true" />
+                لون {teams.find((team) => team.side === 'A')?.name_ar ?? 'الفريق أ'}
+              </label>
+              <select
+                id="team-color-a"
+                value={teamColorA}
+                onChange={(event) => setTeamColorA(event.target.value)}
+                disabled={colorBusy}
+                required
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+              >
+                {teamColorA && !TEAM_COLOR_PRESETS.some((preset) => preset.value === teamColorA) ? (
+                  <option value={teamColorA}>اللون الحالي</option>
+                ) : null}
+                {TEAM_COLOR_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="team-color-b" className="flex items-center gap-2 text-xs font-bold text-white/55">
+                <span className="size-3.5 rounded-full border border-white/20" style={{ backgroundColor: teamColorB || '#f5f3ea' }} aria-hidden="true" />
+                لون {teams.find((team) => team.side === 'B')?.name_ar ?? 'الفريق ب'}
+              </label>
+              <select
+                id="team-color-b"
+                value={teamColorB}
+                onChange={(event) => setTeamColorB(event.target.value)}
+                disabled={colorBusy}
+                required
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+              >
+                {teamColorB && !TEAM_COLOR_PRESETS.some((preset) => preset.value === teamColorB) ? (
+                  <option value={teamColorB}>اللون الحالي</option>
+                ) : null}
+                {TEAM_COLOR_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={colorBusy || !teamColorA || !teamColorB}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-7"
+            >
+              {colorBusy ? <Loader2 className="size-4 animate-spin" /> : <Palette className="size-4" />}
+              حفظ الألوان
+            </button>
+
+            {colorError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{colorError}</p> : null}
+            {colorSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{colorSuccess}</p> : null}
+          </form>
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <Link2 className="size-5 text-brand-300" />
+                رابط تقييم اللاعبين
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                أرسل هذا الرابط للاعبين بعد نهاية المباراة؛ سيفتح صفحة التقييم مباشرة على الميدان. يجب أن يكون اللاعب مسجلًا دخوله ومشاركًا في المباراة.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCopyRatingLink()}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+            >
+              {ratingLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              {ratingLinkCopied ? 'تم نسخ الرابط' : 'نسخ رابط التقييم'}
+            </button>
+          </div>
+          <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
+            {getRatingLink()}
+          </p>
+        </Card>
+      ) : null}
+
       {isAdmin ? (
         <Card className="mt-4 border-white/10 p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -1085,7 +1345,12 @@ export default function MatchDetails() {
                             <div key={scorer.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2 text-start">
                               <span className="min-w-0 truncate text-xs font-bold text-white/75">{player?.full_name ?? 'لاعب'}</span>
                               <span className="shrink-0 text-[11px] font-extrabold text-brand-200">
-                                {scorer.goals} هدف{scorer.assists ? ` · ${scorer.assists} تمريرة` : ''}
+                                {[
+                                  scorer.goals ? `${scorer.goals} هدف` : null,
+                                  scorer.assists ? `${scorer.assists} تمريرة` : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ') || 'بدون إحصائيات'}
                               </span>
                             </div>
                           )
@@ -1164,7 +1429,7 @@ export default function MatchDetails() {
                         </select>
                         <label className="grid gap-1 text-[11px] font-bold text-white/45">
                           أهداف
-                          <input type="number" min="1" max="30" value={scorer.goals} onChange={(event) => updateScorerDraft(index, 'goals', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                          <input type="number" min="0" max="30" value={scorer.goals} onChange={(event) => updateScorerDraft(index, 'goals', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
                         </label>
                         <label className="grid gap-1 text-[11px] font-bold text-white/45">
                           تمريرات
@@ -1206,7 +1471,7 @@ export default function MatchDetails() {
         ) : null}
       </section>
 
-      <section className="mt-8" aria-label="الميدان">
+      <section ref={pitchRef} className="mt-8 scroll-mt-24" aria-label="الميدان">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
@@ -1214,13 +1479,23 @@ export default function MatchDetails() {
               الميدان
             </h2>
             <p className="mt-1 text-sm text-white/45">
-              اضغط على أي لاعب لعرض متوسطه وتقييمه من 1 إلى 10.
+              اضغط على أي لاعب لتقييمه من 1 إلى 10. الإدارة: اضغط على لاعب لإدخال أهدافه وتمريراته مباشرة.
             </p>
           </div>
           <Badge variant={canRate ? 'brand' : 'neutral'}>
             {canRate ? 'يمكنك التقييم الآن' : 'التقييم غير متاح'}
           </Badge>
         </div>
+
+        {isRateMode ? (
+          <div role="status" className="mb-4 rounded-2xl border border-brand-400/25 bg-brand-400/[0.08] px-4 py-3 text-xs font-bold leading-6 text-brand-100">
+            {canRate
+              ? 'صفحة التقييم: اضغط على أي لاعب على الميدان لتقييمه من 1 إلى 10.'
+              : match.status !== 'completed'
+                ? 'وصلت إلى صفحة التقييم. سيبدأ التقييم بعد إدخال الإدارة لنتيجة المباراة.'
+                : 'التقييم متاح للاعبين المشاركين في المباراة فقط.'}
+          </div>
+        ) : null}
 
         <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-pitch-900/80 p-4 sm:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0,rgba(255,255,255,0)_50%,rgba(255,255,255,0.035)_100%)]" aria-hidden="true" />
@@ -1317,13 +1592,22 @@ export default function MatchDetails() {
                                 const allTimeLabel = allTime && (allTime.total_goals || allTime.total_assists)
                                   ? `${allTime.total_goals} هدف · ${allTime.total_assists} تمريرة`
                                   : null
+                                const matchScorer = scorerByPlayer.get(assignment.player_id)
+                                const matchStatsLabel = matchScorer
+                                  ? [
+                                      matchScorer.goals ? `${matchScorer.goals} هدف` : null,
+                                      matchScorer.assists ? `${matchScorer.assists} تمريرة` : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ')
+                                  : null
                                 return (
                                   <PitchPlayerButton
                                     key={assignment.id}
                                     player={player}
                                     averageRating={stat?.average_rating}
                                     myRating={myRatingsByPlayer.get(assignment.player_id) ?? 0}
-                                    subLabel={allTimeLabel ?? `${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
+                                    subLabel={matchStatsLabel ?? allTimeLabel ?? `${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}`}
                                     selected={ratingTarget?.playerId === assignment.player_id}
                                     onSelect={() =>
                                       setRatingTarget({
@@ -1332,6 +1616,8 @@ export default function MatchDetails() {
                                         average: stat,
                                         myRating: myRatingsByPlayer.get(assignment.player_id) ?? 0,
                                         positionLabel: position?.name_ar ?? assignment.assigned_position_code,
+                                        statsGoals: matchScorer?.goals ?? 0,
+                                        statsAssists: matchScorer?.assists ?? 0,
                                       })
                                     }
                                   />
@@ -1448,6 +1734,67 @@ export default function MatchDetails() {
                 ) : null}
               </>
             )}
+
+            {isAdmin ? (
+              <form onSubmit={handleSavePlayerStats} className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <h3 className="flex items-center gap-2 text-sm font-extrabold text-sand-100">
+                  <Trophy className="size-4 text-brand-300" />
+                  أهداف وتمريرات هذه المباراة
+                </h3>
+                {assignmentByPlayerId.has(ratingTarget.playerId) ? (
+                  <>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'أهداف', value: statsGoals, set: setStatsGoals },
+                        { label: 'تمريرات', value: statsAssists, set: setStatsAssists },
+                      ].map(({ label, value, set }) => (
+                        <div key={label} className="rounded-2xl border border-white/10 bg-pitch-950/50 px-3 py-2.5">
+                          <span className="text-[11px] font-bold text-white/50">{label}</span>
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => set(Math.max(0, value - 1))}
+                              disabled={statsBusy || value <= 0}
+                              aria-label={`إنقاص ${label}`}
+                              className="grid size-10 place-items-center rounded-xl border border-white/10 text-white/70 transition-colors hover:text-white disabled:opacity-40"
+                            >
+                              <Minus className="size-4" />
+                            </button>
+                            <span className="text-xl font-black tabular-nums text-sand-100">{value}</span>
+                            <button
+                              type="button"
+                              onClick={() => set(Math.min(30, value + 1))}
+                              disabled={statsBusy || value >= 30}
+                              aria-label={`زيادة ${label}`}
+                              className="grid size-10 place-items-center rounded-xl border border-white/10 text-white/70 transition-colors hover:text-white disabled:opacity-40"
+                            >
+                              <Plus className="size-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {statsError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{statsError}</p> : null}
+                    {statsSuccess ? <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">{statsSuccess}</p> : null}
+                    <button
+                      type="submit"
+                      disabled={statsBusy}
+                      className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                    >
+                      {statsBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                      حفظ وتحديث النتيجة
+                    </button>
+                    <p className="mt-2 text-[11px] leading-5 text-white/40">
+                      تُحدَّث النتيجة النهائية تلقائيًا وتُفتح التقييمات. حفظ 0 أهداف و0 تمريرات يزيل إحصائيات اللاعب.
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-6 text-white/55">
+                    أنشئ توزيع الفريقين أولًا لإدخال إحصائيات هذا اللاعب.
+                  </p>
+                )}
+              </form>
+            ) : null}
 
             {isAdmin ? (
               <button
