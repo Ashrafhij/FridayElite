@@ -1258,66 +1258,6 @@ export default function MatchDetails() {
         }
       />
 
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-pitch-900/70 p-6 sm:p-8">
-        <div className="bg-turf pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-pitch-950/95 via-pitch-900/50 to-transparent" aria-hidden="true" />
-        <div className="relative">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <Badge variant={match.status === 'registration_open' ? 'brand' : 'warning'}>
-                {STATUS_LABELS[match.status] ?? match.status}
-              </Badge>
-              <h2 className="mt-3 text-2xl font-black text-sand-100 sm:text-3xl">
-                {formatDateTime(match.kickoff_at)}
-              </h2>
-              <p className="mt-2 text-sm text-white/55">{match.venue}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-pitch-950/50 px-4 py-3 text-center">
-              <p className="text-2xl font-black tabular-nums text-sand-100">{match.team_size * 2}</p>
-              <p className="mt-1 text-[11px] text-white/45">لاعبًا في التوزيع</p>
-            </div>
-          </div>
-
-          <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <InfoItem icon={CalendarDays} label="يوم المباراة" value={formatDate(match.local_date)} />
-            <InfoItem icon={Clock} label="وقت الانطلاق" value={formatTime(match.kickoff_at)} />
-            <InfoItem icon={MapPin} label="الملعب" value={match.venue} />
-            <InfoItem icon={Users} label="التشكيلة" value={match.formation} dir="ltr" />
-            <InfoItem icon={CalendarDays} label="فتح التسجيل" value={formatDateTime(match.registration_open_at)} />
-            <InfoItem icon={Clock} label="إغلاق التسجيل" value={formatDateTime(match.registration_close_at)} />
-            <InfoItem icon={MapPin} label="العنوان" value={match.address ?? '—'} />
-            <InfoItem icon={CheckCircle2} label="توزيع الفرق" value={match.teams_generated_at ? formatDateTime(match.teams_generated_at) : 'لم يُنشأ بعد'} />
-          </dl>
-
-          {match.notes ? (
-            <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-white/55">{match.notes}</p>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="إحصائيات المباراة">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
-          <span className="grid size-9 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><CheckCircle2 className="size-4" /></span>
-          <p className="mt-3 text-2xl font-extrabold tabular-nums text-sand-100">{confirmedCount}</p>
-          <p className="mt-1 text-xs text-white/45">مؤكدون</p>
-        </div>
-        <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
-          <span className="grid size-9 place-items-center rounded-xl bg-amber-400/10 text-amber-300"><History className="size-4" /></span>
-          <p className="mt-3 text-2xl font-extrabold tabular-nums text-sand-100">{waitlistedCount}</p>
-          <p className="mt-1 text-xs text-white/45">قائمة الانتظار</p>
-        </div>
-        <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
-          <span className="grid size-9 place-items-center rounded-xl bg-white/5 text-brand-300"><Users className="size-4" /></span>
-          <p className="mt-3 text-2xl font-extrabold tabular-nums text-sand-100">{totalRegistrationCount}</p>
-          <p className="mt-1 text-xs text-white/45">إجمالي التسجيلات</p>
-        </div>
-        <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
-          <span className="grid size-9 place-items-center rounded-xl bg-white/5 text-white/60"><XCircle className="size-4" /></span>
-          <p className="mt-3 text-2xl font-extrabold tabular-nums text-sand-100">{cancelledCount}</p>
-          <p className="mt-1 text-xs text-white/45">ملغاة</p>
-        </div>
-      </section>
-
       {isAdmin ? (
         <Card className="mt-6 border-brand-400/20 p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
