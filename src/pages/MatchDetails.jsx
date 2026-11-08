@@ -1472,15 +1472,17 @@ export default function MatchDetails() {
                 <Badge variant={myRegistration.status === 'confirmed' ? 'brand' : 'warning'}>
                   {myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : waitlistLabel(myRegistration.roster_role)}
                 </Badge>
-                <button
-                  type="button"
-                  onClick={() => void handleCancelMyRegistration()}
-                  disabled={myRegistrationBusy}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
-                >
-                  {myRegistrationBusy ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
-                  إلغاء التسجيل
-                </button>
+                {!['completed', 'cancelled'].includes(match.status) ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleCancelMyRegistration()}
+                    disabled={myRegistrationBusy}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-red-400/25 bg-red-400/[0.06] px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+                  >
+                    {myRegistrationBusy ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+                    إلغاء التسجيل
+                  </button>
+                ) : null}
               </div>
             ) : (
               <button
