@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
+  Award,
   CalendarDays,
   Clock,
   Footprints,
@@ -23,6 +24,14 @@ import { useRegistrationWindow } from '../hooks/useRegistrationWindow'
 import { formatRegistrationDateTime } from '../lib/registrationWindow'
 import { supabase } from '../lib/supabase'
 import { toArabicError } from '../lib/errorMessages'
+
+function ratingColor(rating) {
+  const value = Number(rating)
+  if (Number.isNaN(value)) return '#9ca3af'
+  if (value >= 7.5) return '#22c55e'
+  if (value >= 6.5) return '#f59e0b'
+  return '#ef4444'
+}
 
 function LeaderAvatar({ player, size = 44 }) {
   const initial = player?.full_name?.trim()?.charAt(0) || '؟'
@@ -141,6 +150,26 @@ export default function Dashboard() {
     return awards
   }, [mvpStatsQuery.data])
 
+  const overallRatingByPlayer = useMemo(() => {
+    const totals = new Map()
+    for (const stat of mvpStatsQuery.data ?? []) {
+      const acc = totals.get(stat.player_id) ?? { weightedSum: 0, ratingCount: 0, matches: 0 }
+      acc.weightedSum += Number(stat.average_rating) * stat.rating_count
+      acc.ratingCount += stat.rating_count
+      acc.matches += 1
+      totals.set(stat.player_id, acc)
+    }
+    const result = new Map()
+    for (const [playerId, acc] of totals) {
+      result.set(playerId, {
+        overall: acc.ratingCount ? acc.weightedSum / acc.ratingCount : 0,
+        ratingCount: acc.ratingCount,
+        matches: acc.matches,
+      })
+    }
+    return result
+  }, [mvpStatsQuery.data])
+
   const allTimePlayerIds = useMemo(
     () => [
       ...new Set([
@@ -192,13 +221,16 @@ export default function Dashboard() {
       .map(([playerId, awards]) => ({ playerId, awards }))
       .sort((a, b) => b.awards - a.awards)
     const mostMvp = topByMvp[0]?.awards > 0 ? topByMvp[0] : null
+    const topByOverall = [...overallRatingByPlayer.entries()]
+      .map(([playerId, data]) => ({ playerId, overall: data.overall, ratingCount: data.ratingCount, matches: data.matches }))
+      .sort((a, b) => b.overall - a.overall || b.ratingCount - a.ratingCount)
 
     const topScorers = byGoals.filter((item) => item.total_goals > 0)
     const topAssisters = byAssists.filter((item) => item.total_assists > 0)
     const topByGames = byGames.filter((item) => item.games > 0)
 
-    return { directoryById, statsByPlayer, topScorer, topAssister, mostGames, mostMvp, topScorers, topAssisters, topByGames, topByMvp }
-  }, [allTimeStatsQuery.data, allTimePlayersQuery.data, gamesPlayedByPlayer, mvpAwardsByPlayer])
+    return { directoryById, statsByPlayer, topScorer, topAssister, mostGames, mostMvp, topScorers, topAssisters, topByGames, topByMvp, topByOverall }
+  }, [allTimeStatsQuery.data, allTimePlayersQuery.data, gamesPlayedByPlayer, mvpAwardsByPlayer, overallRatingByPlayer])
 
   const hasAllTimeStats = Boolean(leaders.topScorer || leaders.topAssister || leaders.mostGames || leaders.mostMvp)
   const [leadersTab, setLeadersTab] = useState('goals')
@@ -210,7 +242,9 @@ export default function Dashboard() {
         ? leaders.topByGames
         : leadersTab === 'mvp'
           ? leaders.topByMvp
-          : leaders.topScorers
+          : leadersTab === 'overall'
+            ? leaders.topByOverall
+            : leaders.topScorers
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -317,14 +351,17 @@ export default function Dashboard() {
                       ? 'قائمة الأكثر مشاركة'
                       : leadersTab === 'mvp'
                         ? 'قائمة نجوم المباراة'
-                        : 'قائمة الهدافين التاريخيين'}
+                        : leadersTab === 'overall'
+                          ? 'قائمة التقييم العام'
+                          : 'قائمة الهدافين التاريخيين'}
                 </h3>
-                <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 bg-pitch-950/50 p-1" role="tablist" aria-label="ترتيب الإحصائيات">
+                <div className="grid grid-cols-5 gap-1 rounded-2xl border border-white/10 bg-pitch-950/50 p-1" role="tablist" aria-label="ترتيب الإحصائيات">
                   {[
                     { key: 'goals', label: 'أهداف', icon: Volleyball },
                     { key: 'assists', label: 'تمريرات', icon: Footprints },
                     { key: 'games', label: 'مباريات', icon: History },
-                    { key: 'mvp', label: 'نجم المباراة', icon: Star },
+                    { key: 'mvp', label: 'MVP', icon: Star },
+                    { key: 'overall', label: 'التقييم', icon: Award },
                   ].map(({ key, label, icon: Icon }) => (
                     <button
                       key={key}
@@ -365,17 +402,28 @@ export default function Dashboard() {
                               ? `${assists} تمريرة · ${games} مباراة`
                               : leadersTab === 'mvp'
                                 ? `${awards} ${awards === 1 ? 'مرة نجم المباراة' : 'مرات نجم المباراة'} · ${games} مباراة`
-                                : `${games} مباراة · ${goals} هدف · ${assists} تمريرة`}
+                                : leadersTab === 'overall'
+                                  ? `${Number(row.overall ?? 0).toFixed(1)} · ${row.matches ?? games} مباراة · ${row.ratingCount ?? 0} تقييم`
+                                  : `${games} مباراة · ${goals} هدف · ${assists} تمريرة`}
                         </p>
                       </div>
                       <span className="flex shrink-0 items-center gap-1">
+                        {leadersTab === 'overall' ? (
+                          <span
+                            title={`التقييم العام ${Number(row.overall ?? 0).toFixed(1)} من 10`}
+                            className="rounded-full px-2 py-1 text-[11px] font-black text-white"
+                            style={{ backgroundColor: ratingColor(row.overall ?? 0) }}
+                          >
+                            {Number(row.overall ?? 0).toFixed(1)}
+                          </span>
+                        ) : null}
                         {leadersTab === 'mvp' && awards ? (
                           <span title={`${awards} ${awards === 1 ? 'مرة نجم المباراة' : 'مرات نجم المباراة'}`} className="flex h-5 items-center gap-0.5 rounded-full bg-brand-400 px-1.5 text-[10px] font-black text-pitch-950 ring-2 ring-white/40">
                             <Star className="size-2.5" />
                             {awards}
                           </span>
                         ) : null}
-                        {leadersTab !== 'assists' && leadersTab !== 'mvp' && goals ? (
+                        {leadersTab !== 'assists' && leadersTab !== 'mvp' && leadersTab !== 'overall' && goals ? (
                           <span
                             title={`${goals} هدف`}
                             className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'goals' ? 'bg-white ring-2 ring-brand-400/60' : 'bg-white/85'}`}
@@ -384,7 +432,7 @@ export default function Dashboard() {
                             {goals}
                           </span>
                         ) : null}
-                        {leadersTab !== 'goals' && leadersTab !== 'mvp' && assists ? (
+                        {leadersTab !== 'goals' && leadersTab !== 'mvp' && leadersTab !== 'overall' && assists ? (
                           <span
                             title={`${assists} تمريرة`}
                             className={`flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-black text-pitch-950 ${leadersTab === 'assists' ? 'bg-brand-300 ring-2 ring-white/40' : 'bg-brand-300/85'}`}
