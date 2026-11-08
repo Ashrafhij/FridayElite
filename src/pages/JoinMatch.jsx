@@ -165,6 +165,26 @@ export default function JoinMatch() {
   const registrationOpen = invite?.registration_state === 'open'
   const fromPath = `/join/${matchId}`
 
+  // Fellow registrants shown after registration. Requires migration 0027; if
+  // the RPC is missing the query errors and the section simply stays hidden.
+  const rosterQuery = useQuery({
+    queryKey: ['match-invite-roster', matchId, lookup?.phone ?? ''],
+    enabled: Boolean(matchId && phase === 'done' && lookup?.phone),
+    retry: 0,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      const { data, error: rpcError } = await supabase.rpc('get_match_invite_roster', {
+        p_match_id: matchId,
+        p_phone: lookup.phone,
+      })
+      if (rpcError) throw rpcError
+      return data ?? []
+    },
+  })
+  const roster = rosterQuery.data ?? []
+  const rosterGks = roster.filter((player) => player.is_gk)
+  const rosterOutfield = roster.filter((player) => !player.is_gk)
+
   async function handleLookup(event) {
     event.preventDefault()
     if (busy) return
@@ -202,6 +222,7 @@ export default function JoinMatch() {
         name: row.player_name,
         status: row.registration_status,
         queuePosition: row.queue_position,
+        waitlistPosition: row.waitlist_position,
         rosterRole: row.roster_role,
         already: true,
       })
@@ -238,6 +259,7 @@ export default function JoinMatch() {
       name: row.player_name,
       status: row.registration_status,
       queuePosition: row.queue_position,
+      waitlistPosition: row.waitlist_position,
       rosterRole: row.roster_role,
       already: row.already_registered,
     })
@@ -485,14 +507,102 @@ export default function JoinMatch() {
                     <p className="mt-2 text-sm font-bold leading-7 text-amber-200">
                       {result.rosterRole === 'gk' ? 'اكتمل عدد حراس المرمى' : 'اكتمل عدد لاعبي الميدان'}، وأنت الآن في{' '}
                       {result.rosterRole === 'gk' ? 'قائمة انتظار حراس المرمى' : 'قائمة انتظار اللاعبين'}
-                      {result.queuePosition ? ` (ترتيب التسجيل ${result.queuePosition})` : ''}. سيتم ترقيتك تلقائيًا عند
-                      توفر مقعد.
+                      {result.waitlistPosition
+                        ? ` — رقمك في قائمة الانتظار: ${result.waitlistPosition}${result.waitlistPosition === 1 ? ' (أنت التالي!)' : ''}`
+                        : result.queuePosition
+                          ? ` (ترتيب التسجيل ${result.queuePosition})`
+                          : ''}
+                      . سيتم ترقيتك تلقائيًا عند توفر مقعد.
                     </p>
                   )}
                   {result.already ? (
                     <p className="mt-1 text-[11px] text-white/40">كنت مسجلًا مسبقًا في هذه المباراة.</p>
                   ) : null}
                 </div>
+
+                {rosterQuery.isLoading ? (
+                  <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-semibold text-white/45">
+                    <Loader2 className="size-4 animate-spin" />
+                    جارٍ تحميل قائمة المسجلين…
+                  </div>
+                ) : !rosterQuery.isError && roster.length ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-start">
+                    <p className="flex items-center gap-2 text-sm font-extrabold text-sand-100">
+                      <Users className="size-4 shrink-0 text-brand-300" />
+                      المسجلون في المباراة
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-white/50">
+                        {roster.length}
+                      </span>
+                    </p>
+
+                    {rosterGks.length ? (
+                      <div className="mt-3">
+                        <p className="text-[11px] font-extrabold text-white/40">
+                          🧤 حراس المرمى ({rosterGks.length})
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {rosterGks.map((player) => (
+                            <li
+                              key={player.full_name}
+                              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold ${
+                                player.is_self
+                                  ? 'border-brand-400/30 bg-brand-400/10 text-brand-100'
+                                  : 'border-white/5 bg-white/[0.02] text-white/75'
+                              }`}
+                            >
+                              <span aria-hidden="true" className="shrink-0">🧤</span>
+                              <span className="min-w-0 flex-1 truncate">{player.full_name}</span>
+                              {player.jersey_number ? (
+                                <span className="shrink-0 font-bold text-white/40">رقم {player.jersey_number}</span>
+                              ) : null}
+                              {player.position_name_ar ? (
+                                <span className="hidden shrink-0 text-white/35 sm:inline">{player.position_name_ar}</span>
+                              ) : null}
+                              {player.is_self ? (
+                                <span className="shrink-0 rounded-full border border-brand-400/40 bg-brand-400/15 px-2 py-0.5 text-[10px] font-black text-brand-200">
+                                  أنت
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {rosterOutfield.length ? (
+                      <div className={rosterGks.length ? 'mt-4' : 'mt-3'}>
+                        <p className="text-[11px] font-extrabold text-white/40">
+                          لاعبو الميدان ({rosterOutfield.length})
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {rosterOutfield.map((player) => (
+                            <li
+                              key={player.full_name}
+                              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold ${
+                                player.is_self
+                                  ? 'border-brand-400/30 bg-brand-400/10 text-brand-100'
+                                  : 'border-white/5 bg-white/[0.02] text-white/75'
+                              }`}
+                            >
+                              <span className="min-w-0 flex-1 truncate">{player.full_name}</span>
+                              {player.jersey_number ? (
+                                <span className="shrink-0 font-bold text-white/40">رقم {player.jersey_number}</span>
+                              ) : null}
+                              {player.position_name_ar ? (
+                                <span className="hidden shrink-0 text-white/35 sm:inline">{player.position_name_ar}</span>
+                              ) : null}
+                              {player.is_self ? (
+                                <span className="shrink-0 rounded-full border border-brand-400/40 bg-brand-400/15 px-2 py-0.5 text-[10px] font-black text-brand-200">
+                                  أنت
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {!session ? (
                   <p className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[11px] leading-6 text-white/45">
