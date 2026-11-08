@@ -71,10 +71,31 @@ function stateMessage(invite) {
   if (!invite) return ''
   switch (invite.registration_state) {
     case 'open': {
-      const left = Math.max(0, invite.capacity - invite.confirmed_count)
-      return left > 0
-        ? `متبقي ${left} مقعدًا من أصل ${invite.capacity}.`
-        : `اكتمل العدد — التسجيل الآن في قائمة الانتظار (${invite.waitlist_count} منتظر).`
+      // Per-pool counts arrive with migration 0026. Until then, fall back to
+      // the original total-seat message so the page keeps working.
+      if (invite.gk_confirmed === undefined || invite.outfield_confirmed === undefined) {
+        const left = Math.max(0, invite.capacity - invite.confirmed_count)
+        return left > 0
+          ? `متبقي ${left} مقعدًا من أصل ${invite.capacity}.`
+          : `اكتمل العدد — التسجيل الآن في قائمة الانتظار (${invite.waitlist_count} منتظر).`
+      }
+
+      const capacity = Number(invite.capacity ?? 18)
+      const gkLimit = Math.min(2, capacity)
+      const outfieldLimit = Math.min(16, Math.max(capacity - gkLimit, 0))
+      const gkLeft = Math.max(0, gkLimit - Number(invite.gk_confirmed ?? 0))
+      const outfieldLeft = Math.max(0, outfieldLimit - Number(invite.outfield_confirmed ?? 0))
+
+      if (outfieldLeft <= 0 && gkLeft <= 0) {
+        return `اكتمل العدد — التسجيل الآن في قائمة الانتظار (${invite.waitlist_count} منتظر).`
+      }
+      if (outfieldLeft <= 0) {
+        return `اكتمل عدد لاعبي الميدان — ما زال هناك ${gkLeft} مقعد لحراس المرمى. اللاعبون الجدد يدخلون قائمة الانتظار.`
+      }
+      if (gkLeft <= 0) {
+        return `اكتمل عدد حراس المرمى — ما زال هناك ${outfieldLeft} مقعد للاعبين الميدان. حراس المرمى الجدد يدخلون قائمة الانتظار.`
+      }
+      return `متبقي ${outfieldLeft} مقعدًا للاعبين و${gkLeft} لحراس المرمى.`
     }
     case 'not_open':
       return `يفتح التسجيل ${formatDateTime(invite.registration_open_at)}.`
@@ -181,6 +202,7 @@ export default function JoinMatch() {
         name: row.player_name,
         status: row.registration_status,
         queuePosition: row.queue_position,
+        rosterRole: row.roster_role,
         already: true,
       })
       setPhase('done')
@@ -216,6 +238,7 @@ export default function JoinMatch() {
       name: row.player_name,
       status: row.registration_status,
       queuePosition: row.queue_position,
+      rosterRole: row.roster_role,
       already: row.already_registered,
     })
     setPhase('done')
@@ -460,8 +483,9 @@ export default function JoinMatch() {
                     </p>
                   ) : (
                     <p className="mt-2 text-sm font-bold leading-7 text-amber-200">
-                      اكتمل العدد، وأنت الآن في قائمة الانتظار
-                      {result.queuePosition ? ` (الترتيب ${result.queuePosition})` : ''}. سيتم ترقيتك تلقائيًا عند
+                      {result.rosterRole === 'gk' ? 'اكتمل عدد حراس المرمى' : 'اكتمل عدد لاعبي الميدان'}، وأنت الآن في{' '}
+                      {result.rosterRole === 'gk' ? 'قائمة انتظار حراس المرمى' : 'قائمة انتظار اللاعبين'}
+                      {result.queuePosition ? ` (ترتيب التسجيل ${result.queuePosition})` : ''}. سيتم ترقيتك تلقائيًا عند
                       توفر مقعد.
                     </p>
                   )}

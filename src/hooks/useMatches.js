@@ -99,7 +99,7 @@ export function useMatches() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('registrations')
-        .select('id,status,queue_position,registered_at,created_at')
+        .select('id,status,queue_position,roster_role,registered_at,created_at')
         .eq('match_id', activeMatch.id)
         .eq('player_id', profile.id)
         .neq('status', 'cancelled')
@@ -137,7 +137,11 @@ export function useMatches() {
     if (registration) {
       queryClient.setQueryData(['my-registration', activeMatch.id, profile?.id], registration)
     }
-    setActionSuccess('تم تسجيلك في المباراة.')
+    setActionSuccess(
+      registration?.status === 'waitlisted'
+        ? `أنت الآن في ${registration.roster_role === 'gk' ? 'قائمة انتظار حراس المرمى' : 'قائمة انتظار اللاعبين'}.`
+        : 'تم تسجيلك في المباراة.',
+    )
     setActionBusy(false)
     await refresh()
     return true

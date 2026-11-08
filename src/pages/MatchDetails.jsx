@@ -107,6 +107,10 @@ function roleLabel(role) {
   return '—'
 }
 
+function waitlistLabel(role) {
+  return role === 'gk' ? 'قائمة انتظار حراس المرمى' : 'قائمة انتظار اللاعبين'
+}
+
 function ratingColor(rating) {
   const value = Number(rating)
   if (Number.isNaN(value)) return '#9ca3af'
@@ -165,6 +169,7 @@ function RegistrationPlayerRow({
   showDelete = false,
   deleting = false,
   onDelete,
+  waitlistPosition,
 }) {
   const player = directoryById.get(registration.player_id)
   const name = player?.full_name ?? 'لاعب'
@@ -172,7 +177,7 @@ function RegistrationPlayerRow({
 
   if (player?.jersey_number) details.push(`رقم ${player.jersey_number}`)
   if (registration.roster_role) details.push(roleLabel(registration.roster_role))
-  if (registration.status === 'waitlisted') details.push(`الترتيب ${registration.queue_position}`)
+  if (registration.status === 'waitlisted') details.push(`الترتيب ${waitlistPosition ?? registration.queue_position}`)
   if (registration.status === 'confirmed') details.push(`رقم التسجيل ${registration.queue_position}`)
 
   return (
@@ -660,6 +665,14 @@ export default function MatchDetails() {
     () => registrations.filter((item) => item.status === 'waitlisted'),
     [registrations],
   )
+  const gkWaitlist = useMemo(
+    () => waitlistedPlayers.filter((item) => item.roster_role === 'gk'),
+    [waitlistedPlayers],
+  )
+  const outfieldWaitlist = useMemo(
+    () => waitlistedPlayers.filter((item) => item.roster_role !== 'gk'),
+    [waitlistedPlayers],
+  )
   const cancelledCount =
     statsQuery.data?.cancelled_count ?? registrations.filter((item) => item.status === 'cancelled').length
   const confirmedCount = statsQuery.data?.confirmed_count ?? confirmedPlayers.length
@@ -677,6 +690,16 @@ export default function MatchDetails() {
   const myRegistration = registrations.find(
     (item) => item.player_id === profile?.id && item.status !== 'cancelled',
   )
+  const myWaitlistPosition = useMemo(() => {
+    if (!myRegistration || myRegistration.status !== 'waitlisted') return null
+    const pool = registrations.filter(
+      (item) =>
+        item.status === 'waitlisted' &&
+        (item.roster_role === 'gk') === (myRegistration.roster_role === 'gk'),
+    )
+    const index = pool.findIndex((item) => item.id === myRegistration.id)
+    return index >= 0 ? index + 1 : null
+  }, [myRegistration, registrations])
   const ratingWindowOpen = Boolean(
     match && new Date(match.kickoff_at).getTime() + 48 * 3600_000 > Date.now(),
   )
@@ -1115,7 +1138,11 @@ export default function MatchDetails() {
       return
     }
 
-    setRegistrationSuccess(data?.status === 'waitlisted' ? 'أنت الآن في قائمة الانتظار.' : 'تم تسجيلك في المباراة.')
+    setRegistrationSuccess(
+      data?.status === 'waitlisted'
+        ? `أنت الآن في ${waitlistLabel(data?.roster_role)}.`
+        : 'تم تسجيلك في المباراة.',
+    )
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
@@ -1415,7 +1442,7 @@ export default function MatchDetails() {
         {isRegisterMode ? (
           <div role="status" className="mb-4 rounded-2xl border border-brand-400/25 bg-brand-400/[0.08] px-4 py-3 text-xs font-bold leading-6 text-brand-100">
             {myRegistration
-              ? `أنت مسجّل في هذه المباراة: ${myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : `قائمة الانتظار (الترتيب ${myRegistration.queue_position})`}.`
+              ? `أنت مسجّل في هذه المباراة: ${myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : `${waitlistLabel(myRegistration.roster_role)}${myWaitlistPosition ? ` (الترتيب ${myWaitlistPosition})` : ''}`}.`
               : registrationOpenForMatch
                 ? 'صفحة التسجيل: سجّل مقعدك في المباراة قبل اكتمال السعة.'
                 : `التسجيل يفتح ${formatDateTime(match.registration_open_at)} ويُغلق ${formatDateTime(match.registration_close_at)}.`}
@@ -1443,7 +1470,7 @@ export default function MatchDetails() {
             {myRegistration ? (
               <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
                 <Badge variant={myRegistration.status === 'confirmed' ? 'brand' : 'warning'}>
-                  {myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : 'قائمة الانتظار'}
+                  {myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : waitlistLabel(myRegistration.roster_role)}
                 </Badge>
                 <button
                   type="button"
@@ -2205,13 +2232,45 @@ export default function MatchDetails() {
         </div>
 
           {waitlistedPlayers.length ? (
-            <div className="space-y-2.5">
-              {waitlistedPlayers.map((registration) => (
-                <RegistrationPlayerRow key={registration.id} registration={registration} directoryById={directoryById} positionByCode={positionByCode} />
-              ))}
+            <div className="space-y-4">
+              {outfieldWaitlist.length ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-3 px-1">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/40">لاعبو الميدان</p>
+                    <span className="text-[11px] font-bold text-white/35">{outfieldWaitlist.length} منتظر</span>
+                  </div>
+                  {outfieldWaitlist.map((registration, index) => (
+                    <RegistrationPlayerRow
+                      key={registration.id}
+                      registration={registration}
+                      directoryById={directoryById}
+                      positionByCode={positionByCode}
+                      waitlistPosition={index + 1}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {gkWaitlist.length ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-3 px-1">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/40">حراس المرمى</p>
+                    <span className="text-[11px] font-bold text-white/35">{gkWaitlist.length} منتظر</span>
+                  </div>
+                  {gkWaitlist.map((registration, index) => (
+                    <RegistrationPlayerRow
+                      key={registration.id}
+                      registration={registration}
+                      directoryById={directoryById}
+                      positionByCode={positionByCode}
+                      waitlistPosition={index + 1}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : (
-            <EmptyState icon={History} title="لا يوجد لاعبون في الانتظار" description="عند اكتمال السعة، سينتقل التسجيل الجديد إلى هنا حسب الترتيب." />
+            <EmptyState icon={History} title="لا يوجد لاعبون في الانتظار" description="عند اكتمال السعة، سينتقل التسجيل الجديد إلى قائمة الانتظار الخاصة بمركزه حسب الترتيب." />
           )}
       </section>
 

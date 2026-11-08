@@ -290,10 +290,14 @@ export default function Matches() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <Badge variant={myRegistration.status === 'confirmed' ? 'brand' : 'warning'}>
-                        {myRegistration.status === 'confirmed' ? 'مقعد مؤكد' : 'قائمة الانتظار'}
+                        {myRegistration.status === 'confirmed'
+                          ? 'مقعد مؤكد'
+                          : myRegistration.roster_role === 'gk'
+                            ? 'قائمة انتظار حراس المرمى'
+                            : 'قائمة انتظار اللاعبين'}
                       </Badge>
                       {myRegistration.status === 'waitlisted' ? (
-                        <p className="mt-2 text-[11px] text-white/45">ترتيبك في الانتظار: {myRegistration.queue_position}</p>
+                        <p className="mt-2 text-[11px] text-white/45">ترتيب التسجيل: {myRegistration.queue_position}</p>
                       ) : null}
                     </div>
                     <button
