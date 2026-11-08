@@ -286,33 +286,6 @@ export default function JoinMatch() {
           ? 'أدخل رقم هاتفك، سنعرض اسمك، ثم تؤكد التسجيل — دون الحاجة لتسجيل الدخول.'
           : undefined
       }
-      footer={
-        session ? (
-          <p className="text-xs leading-6 text-white/40">
-            أنت مسجل الدخول باسم{' '}
-            <span className="font-bold text-white/70">{profile?.full_name ?? 'لاعب'}</span>
-            {profile?.status === 'approved' ? (
-              <>
-                {' · '}
-                <Link to={`/matches/${matchId}`} className="font-bold text-brand-300 hover:text-brand-200">
-                  فتح تفاصيل المباراة
-                </Link>
-              </>
-            ) : null}
-          </p>
-        ) : (
-          <p className="text-sm text-white/45">
-            لديك حساب بالفعل؟{' '}
-            <Link
-              to="/login"
-              state={{ from: fromPath }}
-              className="inline-flex min-h-11 items-center font-bold text-brand-300 hover:text-brand-200"
-            >
-              سجّل الدخول
-            </Link>
-          </p>
-        )
-      }
     >
       {inviteQuery.isLoading ? (
         <div className="flex flex-col items-center justify-center py-10 text-center" role="status">
@@ -608,12 +581,6 @@ export default function JoinMatch() {
                   </div>
                 ) : null}
 
-                {!session ? (
-                  <p className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[11px] leading-6 text-white/45">
-                    احتفظ بالرابط. لتعديل تسجيلك أو إلغائه لاحقًا سجّل الدخول برقمك وكلمة المرور.
-                  </p>
-                ) : null}
-
                 <div className="flex flex-col gap-2">
                   {session && profile?.status === 'approved' ? (
                     <Link
@@ -624,14 +591,6 @@ export default function JoinMatch() {
                       <ArrowLeft className="size-4" />
                     </Link>
                   ) : null}
-
-                  <button
-                    type="button"
-                    onClick={resetFlow}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-xs font-bold text-white/60 transition-colors hover:text-white"
-                  >
-                    تسجيل رقم آخر
-                  </button>
                 </div>
               </div>
             ) : null}
