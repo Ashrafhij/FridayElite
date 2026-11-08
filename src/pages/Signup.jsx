@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle,
   Eye,
@@ -20,11 +20,21 @@ import { toArabicError } from '../lib/errorMessages'
 const inputClass =
   'mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50'
 
+/** Only same-origin app paths are accepted as a post-signup destination. */
+function safeRedirect(value) {
+  if (typeof value !== 'string') return ''
+  if (!value.startsWith('/') || value.startsWith('//')) return ''
+  return value
+}
+
 export default function Signup() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { syncSession } = useAuth()
+  const from = safeRedirect(location.state?.from || searchParams.get('from'))
   const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [phone, setPhone] = useState(searchParams.get('phone') ?? '')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -68,11 +78,14 @@ export default function Signup() {
       await syncSession()
 
       if (hasSession) {
-        navigate('/account-status', { replace: true })
+        navigate(from || '/account-status', { replace: true })
       } else {
         navigate('/login', {
           replace: true,
-          state: { notice: 'تم إنشاء حسابك بنجاح. سجّل الدخول للمتابعة.' },
+          state: {
+            notice: 'تم إنشاء حسابك بنجاح. سجّل الدخول للمتابعة.',
+            from: from || undefined,
+          },
         })
       }
     } catch (signUpError) {
@@ -85,12 +98,13 @@ export default function Signup() {
   return (
     <AuthLayout
       title="إنشاء حساب جديد"
-      description="سجّل برقم هاتفك وكلمة مرور. تتم مراجعة كل حساب من قبل الإدارة قبل تفعيل التسجيل في المباريات."
+      description="سجّل برقم هاتفك وكلمة مرور. يمكنك بعدها التسجيل في المباراة عبر رابط التسجيل، وتُفعّل بقية الميزات بعد موافقة الإدارة."
       footer={
         <p className="text-sm text-white/45">
           لديك حساب بالفعل؟{' '}
           <Link
             to="/login"
+            state={{ from: from || undefined }}
             className="inline-flex min-h-11 items-center font-bold text-brand-300 hover:text-brand-200"
           >
             تسجيل الدخول

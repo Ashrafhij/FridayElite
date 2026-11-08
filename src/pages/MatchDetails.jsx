@@ -18,6 +18,7 @@ import {
   Palette,
   Plus,
   RotateCcw,
+  Share2,
   Shuffle,
   Star,
   Trash2,
@@ -1039,7 +1040,18 @@ export default function MatchDetails() {
   }
 
   function getRegisterLink() {
-    return `${window.location.origin}${window.location.pathname}#/matches/${matchId}?register=1`
+    return `${window.location.origin}${window.location.pathname}#/join/${matchId}`
+  }
+
+  function getRegisterShareText() {
+    const when = match ? formatDate(match.kickoff_at) : ''
+    const where = match?.venue ? ` في ${match.venue}` : ''
+    return `سلام 👋\nسجّل في مباراة فرايدي إيليت${when ? ` — ${when}` : ''}${where}.\nافتح الرابط، أدخل رقم هاتفك، وأكّد اسمك للتسجيل:\n${getRegisterLink()}`
+  }
+
+  function handleShareRegisterLink() {
+    const text = encodeURIComponent(getRegisterShareText())
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer')
   }
 
   function getResultLink() {
@@ -1525,17 +1537,27 @@ export default function MatchDetails() {
                 رابط تسجيل اللاعبين
               </h2>
               <p className="mt-1 text-xs leading-6 text-white/50">
-                أرسل هذا الرابط للاعبين؛ سيفتح صفحة التسجيل لهذه المباراة مباشرة. يجب أن يكون اللاعب مسجلًا دخوله وموافقًا عليه.
+                أرسل هذا الرابط للاعبين. يفتح صفحة تسجيل سريعة: يُدخل رقم هاتفه، يظهر اسمه، ويضغط تسجيل — دون حاجة لتسجيل الدخول أو انتظار الموافقة.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void handleCopyRegisterLink()}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
-            >
-              {registerLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {registerLinkCopied ? 'تم نسخ الرابط' : 'نسخ رابط التسجيل'}
-            </button>
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+              <button
+                type="button"
+                onClick={handleShareRegisterLink}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+              >
+                <Share2 className="size-4" />
+                مشاركة عبر واتساب
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCopyRegisterLink()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:border-white/20 hover:text-white"
+              >
+                {registerLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                {registerLinkCopied ? 'تم نسخ الرابط' : 'نسخ الرابط'}
+              </button>
+            </div>
           </div>
           <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
             {getRegisterLink()}

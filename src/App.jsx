@@ -88,6 +88,7 @@ class ChunkErrorBoundary extends Component {
 const AccountStatus = lazyWithReload(() => import('./pages/AccountStatus'))
 const Admin = lazyWithReload(() => import('./pages/Admin'))
 const Dashboard = lazyWithReload(() => import('./pages/Dashboard'))
+const JoinMatch = lazyWithReload(() => import('./pages/JoinMatch'))
 const Login = lazyWithReload(() => import('./pages/Login'))
 const MatchDetails = lazyWithReload(() => import('./pages/MatchDetails'))
 const MatchResult = lazyWithReload(() => import('./pages/MatchResult'))
@@ -108,6 +109,17 @@ function LazyPage({ children, full = false }) {
 export default function App() {
   return (
     <Routes>
+      {/* Public invite page: the admin shares this link so players can register
+          with their phone number without signing in first. */}
+      <Route
+        path="/join/:matchId"
+        element={
+          <LazyPage full>
+            <JoinMatch />
+          </LazyPage>
+        }
+      />
+
       <Route element={<PublicOnly />}>
         <Route
           path="/login"

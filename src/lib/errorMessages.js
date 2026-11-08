@@ -83,6 +83,7 @@ const ERROR_MESSAGES = [
   [/INVALID_STATUS/, 'حالة الحساب غير صالحة.'],
   [/INVALID_ROLE/, 'دور الحساب غير صالح.'],
   [/ACCOUNT_NOT_APPROVED/i, 'حسابك ما زال بانتظار موافقة الإدارة.'],
+  [/ACCOUNT_INACTIVE/i, 'هذا الحساب موقوف أو مرفوض ولا يمكنه التسجيل. تواصل مع الإدارة.'],
   [/ACCOUNT_NOT_ACTIVE/i, 'حسابك غير مفعّل لتعديل الملف الشخصي.'],
   [/INVALID_NAME/i, 'الاسم يجب أن يكون بين حرفين و80 حرفًا.'],
   [/INVALID_PREFERRED_FOOT/i, 'اختر القدم المفضلة بشكل صحيح.'],

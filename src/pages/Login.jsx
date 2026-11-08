@@ -66,6 +66,7 @@ export default function Login() {
           ليس لديك حساب؟{' '}
           <Link
             to="/signup"
+            state={{ from: location.state?.from }}
             className="inline-flex min-h-11 items-center font-bold text-brand-300 hover:text-brand-200"
           >
             أنشئ حسابًا جديدًا
