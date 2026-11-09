@@ -358,6 +358,7 @@ export default function MatchDetails() {
   const [ratingBusyPlayerId, setRatingBusyPlayerId] = useState(null)
   const [ratingError, setRatingError] = useState('')
   const [ratingSuccess, setRatingSuccess] = useState('')
+  const [votesPlayerId, setVotesPlayerId] = useState('')
   const [ratingTarget, setRatingTarget] = useState(null)
   const [externalName, setExternalName] = useState('')
   const [externalPosition, setExternalPosition] = useState('')
@@ -722,6 +723,8 @@ export default function MatchDetails() {
     }
     return [...map.values()]
   }, [ratingVotes])
+  // Keep the picker valid even if the selected player has no votes anymore.
+  const votesSelection = votesByRated.some((entry) => entry.id === votesPlayerId) ? votesPlayerId : ''
   const allTimeStatsByPlayer = new Map((allTimeStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const mvpPlayerId = (ratingStatsQuery.data ?? [])[0]?.player_id ?? null
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
@@ -2264,15 +2267,30 @@ export default function MatchDetails() {
 
       {isAdmin && ratingVotes.length ? (
         <section className="mt-8" aria-label="أصوات التقييم">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
               <Vote className="size-5 text-brand-300" />
               أصوات التقييم
             </h2>
-            <span className="text-xs font-bold text-white/35">{ratingVotes.length} صوت</span>
+            <div className="flex items-center gap-3">
+              <select
+                value={votesSelection}
+                onChange={(event) => setVotesPlayerId(event.target.value)}
+                aria-label="اختر لاعبًا لعرض من صوّت له"
+                className="rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2 text-xs font-bold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+              >
+                <option value="">اختر لاعبًا…</option>
+                {votesByRated.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </select>
+              <span className="shrink-0 text-xs font-bold text-white/35">{ratingVotes.length} صوت</span>
+            </div>
           </div>
           <p className="mb-3 text-[11px] leading-6 text-white/45">
-            يُعرض هنا من صوّت ولمن فقط، دون قيم التقييم.
+            يُعرض هنا من صوّت ولمن فقط، دون قيم التقييم. اختر لاعبًا لتمييز من صوّت له بالحلقة البيضاء.
           </p>
 
           <Card className="p-5 sm:p-6">
@@ -2294,14 +2312,35 @@ export default function MatchDetails() {
               <div>
                 <p className="text-[11px] font-extrabold tracking-wide text-white/40">حسب اللاعب المُقيَّم</p>
                 <ul className="mt-3 space-y-2.5">
-                  {votesByRated.map((entry) => (
-                    <li key={entry.id} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
-                      <p className="text-[13px] font-extrabold text-sand-100">{entry.name}</p>
-                      <p className="mt-1 text-[12px] leading-6 text-white/55">
-                        صوّت له: {entry.voters.join('، ')}
-                      </p>
-                    </li>
-                  ))}
+                  {votesByRated.map((entry) => {
+                    const isSelected = entry.id === votesSelection
+                    return (
+                      <li
+                        key={entry.id}
+                        className={`rounded-xl border px-3 py-2.5 ${
+                          isSelected ? 'border-white/60 bg-white/[0.06]' : 'border-white/5 bg-white/[0.02]'
+                        }`}
+                      >
+                        <p className="text-[13px] font-extrabold text-sand-100">{entry.name}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {entry.voters.map((voter, index) =>
+                            isSelected ? (
+                              <span
+                                key={`${entry.id}-${index}`}
+                                className="inline-flex items-center rounded-full border-2 border-white px-2.5 py-0.5 text-[11px] font-bold text-white"
+                              >
+                                {voter}
+                              </span>
+                            ) : (
+                              <span key={`${entry.id}-${index}`} className="text-[12px] text-white/55">
+                                {voter}
+                              </span>
+                            ),
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             </div>
