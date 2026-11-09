@@ -27,6 +27,7 @@ import {
   UserCheck,
   UserPlus,
   UserRound,
+  Vote,
   Volleyball,
   XCircle,
 } from 'lucide-react'
@@ -578,6 +579,22 @@ export default function MatchDetails() {
     refetchInterval: 30_000,
   })
 
+  // Admin-only participation view: who voted for whom (never the values).
+  const ratingVotesQuery = useQuery({
+    queryKey: ['match-rating-votes', matchId],
+    enabled: Boolean(isAdmin && matchQuery.data),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('admin_match_rating_votes', { p_match_id: matchId })
+      if (error) {
+        console.debug('admin_match_rating_votes unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
   const registrations = registrationsQuery.data ?? []
   const assignments = assignmentsQuery.data ?? []
 
@@ -684,6 +701,27 @@ export default function MatchDetails() {
   const matchScorers = scorersQuery.data ?? []
   const myRatingsByPlayer = new Map((myRatingsQuery.data ?? []).map((item) => [item.rated_player_id, item.rating]))
   const ratingStatsByPlayer = new Map((ratingStatsQuery.data ?? []).map((item) => [item.player_id, item]))
+  const ratingVotes = ratingVotesQuery.data ?? []
+  const votesByRater = useMemo(() => {
+    const map = new Map()
+    for (const vote of ratingVotes) {
+      if (!map.has(vote.rater_id)) {
+        map.set(vote.rater_id, { id: vote.rater_id, name: vote.rater_name, rated: [] })
+      }
+      map.get(vote.rater_id).rated.push(vote.rated_player_name)
+    }
+    return [...map.values()]
+  }, [ratingVotes])
+  const votesByRated = useMemo(() => {
+    const map = new Map()
+    for (const vote of ratingVotes) {
+      if (!map.has(vote.rated_player_id)) {
+        map.set(vote.rated_player_id, { id: vote.rated_player_id, name: vote.rated_player_name, voters: [] })
+      }
+      map.get(vote.rated_player_id).voters.push(vote.rater_name)
+    }
+    return [...map.values()]
+  }, [ratingVotes])
   const allTimeStatsByPlayer = new Map((allTimeStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const mvpPlayerId = (ratingStatsQuery.data ?? [])[0]?.player_id ?? null
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
@@ -2223,6 +2261,53 @@ export default function MatchDetails() {
           </div>
         </div>
       </section>
+
+      {isAdmin && ratingVotes.length ? (
+        <section className="mt-8" aria-label="أصوات التقييم">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+              <Vote className="size-5 text-brand-300" />
+              أصوات التقييم
+            </h2>
+            <span className="text-xs font-bold text-white/35">{ratingVotes.length} صوت</span>
+          </div>
+          <p className="mb-3 text-[11px] leading-6 text-white/45">
+            يُعرض هنا من صوّت ولمن فقط، دون قيم التقييم.
+          </p>
+
+          <Card className="p-5 sm:p-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-extrabold tracking-wide text-white/40">حسب المُقيِّم</p>
+                <ul className="mt-3 space-y-2.5">
+                  {votesByRater.map((entry) => (
+                    <li key={entry.id} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                      <p className="text-[13px] font-extrabold text-sand-100">{entry.name}</p>
+                      <p className="mt-1 text-[12px] leading-6 text-white/55">
+                        صوّت لـ: {entry.rated.join('، ')}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-extrabold tracking-wide text-white/40">حسب اللاعب المُقيَّم</p>
+                <ul className="mt-3 space-y-2.5">
+                  {votesByRated.map((entry) => (
+                    <li key={entry.id} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                      <p className="text-[13px] font-extrabold text-sand-100">{entry.name}</p>
+                      <p className="mt-1 text-[12px] leading-6 text-white/55">
+                        صوّت له: {entry.voters.join('، ')}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Card>
+        </section>
+      ) : null}
 
       <section className="mt-8" aria-label="قائمة الانتظار">
         <div className="mb-3 flex items-center justify-between gap-3">
