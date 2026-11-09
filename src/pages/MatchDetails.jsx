@@ -239,6 +239,7 @@ function PitchPlayerButton({
   assists,
   isMvp,
   showExternalRing,
+  highlightRing,
   selected,
   dropActive,
   draggable,
@@ -262,7 +263,7 @@ function PitchPlayerButton({
         onDrop={onDrop}
         onDragEnd={onDragEnd}
         aria-label={player?.full_name ? `فتح تقييم ${player.full_name}` : 'فتح تقييم اللاعب'}
-        className={`relative grid size-14 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : showExternalRing ? 'border-red-400 text-red-300 ring-4 ring-red-500/50' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`relative grid size-14 place-items-center overflow-visible rounded-full border transition-all ${dropActive ? 'scale-110 border-amber-300 text-amber-200 ring-4 ring-amber-300/40' : highlightRing ? 'border-white text-white ring-[5px] ring-white/80 shadow-[0_0_16px_rgba(255,255,255,0.55)]' : showExternalRing ? 'border-red-400 text-red-300 ring-4 ring-red-500/50' : selected ? 'border-brand-300 text-brand-300 ring-4 ring-brand-400/20' : 'border-white/20 bg-white/10 text-brand-200 hover:border-brand-400/50 hover:bg-white/15'} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {initial}
         {player?.avatar_url ? (
@@ -725,6 +726,11 @@ export default function MatchDetails() {
   }, [ratingVotes])
   // Keep the picker valid even if the selected player has no votes anymore.
   const votesSelection = votesByRated.some((entry) => entry.id === votesPlayerId) ? votesPlayerId : ''
+  // Voters of the picked player — these are circled in white on the pitch.
+  const votesVoterIds = useMemo(
+    () => new Set(ratingVotes.filter((vote) => vote.rated_player_id === votesPlayerId).map((vote) => vote.rater_id)),
+    [ratingVotes, votesPlayerId],
+  )
   const allTimeStatsByPlayer = new Map((allTimeStatsQuery.data ?? []).map((item) => [item.player_id, item]))
   const mvpPlayerId = (ratingStatsQuery.data ?? [])[0]?.player_id ?? null
   const currentUserRegistration = confirmedPlayers.find((item) => item.player_id === profile?.id)
@@ -1966,6 +1972,33 @@ export default function MatchDetails() {
           </div>
         ) : null}
 
+        {isAdmin && ratingVotes.length && pitchTab === 'players' ? (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-pitch-950/50 px-4 py-3">
+            <label htmlFor="votes-player" className="inline-flex items-center gap-2 text-xs font-extrabold text-sand-100">
+              <Vote className="size-4 text-brand-300" />
+              اختر لاعبًا لعرض من صوّت له
+            </label>
+            <select
+              id="votes-player"
+              value={votesSelection}
+              onChange={(event) => setVotesPlayerId(event.target.value)}
+              className="rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2 text-xs font-bold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+            >
+              <option value="">بدون تحديد</option>
+              {votesByRated.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+            {votesSelection ? (
+              <span className="text-[11px] font-bold text-white/50">
+                صوّت له {votesVoterIds.size} لاعب — محاطون بالدائرة البيضاء على الميدان
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-pitch-900/80 p-4 sm:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0,rgba(255,255,255,0)_50%,rgba(255,255,255,0.035)_100%)]" aria-hidden="true" />
           <div className="pointer-events-none absolute inset-3 rounded-[1.5rem] border border-white/20" aria-hidden="true" />
@@ -2144,6 +2177,7 @@ export default function MatchDetails() {
                               assists={scorerByPlayer.get(registration.player_id)?.assists ?? 0}
                               isMvp={registration.player_id === mvpPlayerId}
                               showExternalRing={isAdmin && Boolean(player?.is_external)}
+                              highlightRing={votesVoterIds.has(registration.player_id)}
                               subLabel={`${allTimeLabel ?? roleLabel(registration.roster_role)}${isAdmin && player?.is_external ? ' · ضيف' : ''}`}
                               selected={ratingTarget?.playerId === registration.player_id}
                               onSelect={() =>
@@ -2226,6 +2260,7 @@ export default function MatchDetails() {
                                     assists={matchScorer?.assists ?? 0}
                                     isMvp={assignment.player_id === mvpPlayerId}
                                     showExternalRing={isAdmin && Boolean(player?.is_external)}
+                                    highlightRing={votesVoterIds.has(assignment.player_id)}
                                     subLabel={`${position?.name_ar ?? assignment.assigned_position_code}${assignment.is_out_of_position ? ' · خارج مركزه' : ''}${isAdmin && player?.is_external ? ' · ضيف (مرة واحدة)' : ''}`}
                                     selected={ratingTarget?.playerId === assignment.player_id || pitchSwapFirstId === assignment.player_id}
                                     dropActive={dragTargetId === assignment.player_id}
@@ -2267,30 +2302,15 @@ export default function MatchDetails() {
 
       {isAdmin && ratingVotes.length ? (
         <section className="mt-8" aria-label="أصوات التقييم">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
               <Vote className="size-5 text-brand-300" />
               أصوات التقييم
             </h2>
-            <div className="flex items-center gap-3">
-              <select
-                value={votesSelection}
-                onChange={(event) => setVotesPlayerId(event.target.value)}
-                aria-label="اختر لاعبًا لعرض من صوّت له"
-                className="rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2 text-xs font-bold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
-              >
-                <option value="">اختر لاعبًا…</option>
-                {votesByRated.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-              <span className="shrink-0 text-xs font-bold text-white/35">{ratingVotes.length} صوت</span>
-            </div>
+            <span className="text-xs font-bold text-white/35">{ratingVotes.length} صوت</span>
           </div>
           <p className="mb-3 text-[11px] leading-6 text-white/45">
-            يُعرض هنا من صوّت ولمن فقط، دون قيم التقييم. اختر لاعبًا لتمييز من صوّت له بالحلقة البيضاء.
+            يُعرض هنا من صوّت ولمن فقط، دون قيم التقييم.
           </p>
 
           <Card className="p-5 sm:p-6">
@@ -2312,35 +2332,14 @@ export default function MatchDetails() {
               <div>
                 <p className="text-[11px] font-extrabold tracking-wide text-white/40">حسب اللاعب المُقيَّم</p>
                 <ul className="mt-3 space-y-2.5">
-                  {votesByRated.map((entry) => {
-                    const isSelected = entry.id === votesSelection
-                    return (
-                      <li
-                        key={entry.id}
-                        className={`rounded-xl border px-3 py-2.5 ${
-                          isSelected ? 'border-white/60 bg-white/[0.06]' : 'border-white/5 bg-white/[0.02]'
-                        }`}
-                      >
-                        <p className="text-[13px] font-extrabold text-sand-100">{entry.name}</p>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {entry.voters.map((voter, index) =>
-                            isSelected ? (
-                              <span
-                                key={`${entry.id}-${index}`}
-                                className="inline-flex items-center rounded-full border-2 border-white px-2.5 py-0.5 text-[11px] font-bold text-white"
-                              >
-                                {voter}
-                              </span>
-                            ) : (
-                              <span key={`${entry.id}-${index}`} className="text-[12px] text-white/55">
-                                {voter}
-                              </span>
-                            ),
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
+                  {votesByRated.map((entry) => (
+                    <li key={entry.id} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                      <p className="text-[13px] font-extrabold text-sand-100">{entry.name}</p>
+                      <p className="mt-1 text-[12px] leading-6 text-white/55">
+                        صوّت له: {entry.voters.join('، ')}
+                      </p>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
