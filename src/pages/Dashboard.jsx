@@ -60,8 +60,12 @@ function LeaderAvatar({ player, size = 44 }) {
 export default function Dashboard() {
   const { profile } = useAuth()
   const registrationWindow = useRegistrationWindow()
-  const registrationOpen = registrationWindow.isOpen
   const { activeMatch, pastMatches } = useMatches()
+  const registrationOpen = Boolean(
+    activeMatch &&
+      new Date(activeMatch.registration_open_at) <= new Date() &&
+      new Date() < new Date(activeMatch.registration_close_at),
+  )
   const completedMatchIds = useMemo(
     () => pastMatches.filter((match) => match.status === 'completed').map((match) => match.id),
     [pastMatches],
@@ -320,9 +324,11 @@ export default function Dashboard() {
 
           <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-pitch-950/50 px-3 py-1.5 text-[11px] font-semibold text-white/50">
             <Clock className="size-3.5 text-brand-400/80" />
-            {registrationOpen && registrationWindow.currentWindow
-              ? `التسجيل مفتوح الآن — يغلق ${formatRegistrationDateTime(registrationWindow.currentWindow.closeAt)}`
-              : `يفتح التسجيل ${formatRegistrationDateTime(registrationWindow.nextWindow.openAt)}`}
+            {registrationOpen
+              ? `التسجيل مفتوح الآن — يغلق ${formatRegistrationDateTime(activeMatch.registration_close_at)}`
+              : activeMatch
+                ? `يفتح التسجيل ${formatRegistrationDateTime(activeMatch.registration_open_at)}`
+                : `يفتح التسجيل ${formatRegistrationDateTime(registrationWindow.nextWindow.openAt)}`}
           </p>
         </div>
       </section>
