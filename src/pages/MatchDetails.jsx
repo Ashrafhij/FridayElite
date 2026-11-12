@@ -648,7 +648,7 @@ export default function MatchDetails() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('player_all_time_stats')
-        .select('player_id,total_goals,total_assists,matches_with_stats,average_goals,average_assists')
+        .select('player_id,total_goals,total_assists,matches_with_stats,average_goals,average_assists,matches_played,wins,losses,ties')
         .in('player_id', playerIds)
       if (error) {
         console.debug('player_all_time_stats unavailable', error)
@@ -2769,6 +2769,14 @@ export default function MatchDetails() {
                     <p className="mt-1 text-[11px] text-white/45">
                       كل المباريات: {allTimeStatsByPlayer.get(ratingTarget.playerId).total_goals} هدف ·{' '}
                       {allTimeStatsByPlayer.get(ratingTarget.playerId).total_assists} تمريرة
+                    </p>
+                  ) : null}
+                  {allTimeStatsByPlayer.get(ratingTarget.playerId) ? (
+                    <p className="mt-0.5 text-[10px] leading-5 text-white/35 flex flex-wrap gap-3">
+                      <span>لعبت: {allTimeStatsByPlayer.get(ratingTarget.playerId).matches_played}</span>
+                      <span className="text-brand-200">ف:{allTimeStatsByPlayer.get(ratingTarget.playerId).wins}</span>
+                      <span className="text-amber-200">ت:{allTimeStatsByPlayer.get(ratingTarget.playerId).ties}</span>
+                      <span className="text-red-200">خ:{allTimeStatsByPlayer.get(ratingTarget.playerId).losses}</span>
                     </p>
                   ) : null}
                 </div>
