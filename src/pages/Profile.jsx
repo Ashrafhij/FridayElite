@@ -10,13 +10,17 @@ import {
   ChevronUp,
   Loader2,
   LockKeyhole,
+  Minus,
   Phone,
+  RotateCcw,
   Save,
   ShieldCheck,
   Sparkles,
   Target,
+  Trophy,
   Trash2,
   UserRound,
+  Users,
   X,
 } from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
@@ -129,7 +133,7 @@ export default function Profile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('player_all_time_stats')
-        .select('player_id,total_goals,total_assists,matches_with_stats,average_goals,average_assists')
+        .select('player_id,total_goals,total_assists,matches_with_stats,average_goals,average_assists,matches_played,wins,losses,ties')
         .eq('player_id', profile.id)
         .maybeSingle()
       if (error) {
@@ -385,6 +389,10 @@ export default function Profile() {
         <StatTile icon={Target} label="إجمالي الأهداف" value={allTimeStats?.total_goals ?? 0} hint={allTimeStats ? `متوسط ${allTimeStats.average_goals} هدف في المباراة` : 'عبر كل المباريات'} />
         <StatTile icon={Sparkles} label="إجمالي التمريرات" value={allTimeStats?.total_assists ?? 0} hint={allTimeStats ? `متوسط ${allTimeStats.average_assists} تمريرة في المباراة` : 'عبر كل المباريات'} />
         <StatTile icon={CalendarDays} label="مباريات سجّل فيها" value={allTimeStats?.matches_with_stats ?? 0} hint="مباريات لها نتيجة محفوظة" />
+        <StatTile icon={Users} label="مباريات لعبها" value={allTimeStats?.matches_played ?? 0} hint="مباريات مكتملة تم توزيعك فيها في فريق" />
+        <StatTile icon={Trophy} label="فوز" value={allTimeStats?.wins ?? 0} hint="مباريات انتهت بفوز فريقك" />
+        <StatTile icon={RotateCcw} label="تعادل" value={allTimeStats?.ties ?? 0} hint="مباريات انتهت بتعادل" />
+        <StatTile icon={Minus} label="خسارة" value={allTimeStats?.losses ?? 0} hint="مباريات انتهت بخسارة فريقك" />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-3">
