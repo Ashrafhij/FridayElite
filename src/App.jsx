@@ -2,6 +2,7 @@ import { Component, lazy, Suspense } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import Card from './components/ui/Card'
+import DataLoader from './components/layout/DataLoader'
 import {
   AuthLoading,
   PublicOnly,
@@ -101,7 +102,10 @@ function LazyPage({ children, full = false }) {
   const { pathname } = useLocation()
   return (
     <ChunkErrorBoundary key={pathname}>
-      <Suspense fallback={<AuthLoading compact={!full} />}>{children}</Suspense>
+      <Suspense fallback={<AuthLoading compact={!full} />}>
+        <DataLoader />
+        {children}
+      </Suspense>
     </ChunkErrorBoundary>
   )
 }

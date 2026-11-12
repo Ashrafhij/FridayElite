@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import ApprovalToast from './ApprovalToast'
+import DataLoader from './DataLoader'
 import Header from './Header'
 import BottomNav from './BottomNav'
 
@@ -12,6 +13,7 @@ export default function AppShell() {
         <Outlet />
       </main>
       <ApprovalToast />
+      <DataLoader />
       <BottomNav />
     </div>
   )
