@@ -27,6 +27,7 @@ declare
   v_new_primary   text;
   v_new_class     text;
   v_affected      uuid[];
+  v_affected_id   uuid;
 begin
   -- The player's new roster classification based on saved positions.
   select public.player_roster_class(p_player_id) into v_new_class;
@@ -81,10 +82,10 @@ begin
   end if;
 
   if v_affected is not null then
-    foreach v_code in array v_affected loop
+    foreach v_affected_id in array v_affected loop
       update public.matches
          set teams_stale = true
-       where id = v_code;
+       where id = v_affected_id;
     end loop;
   end if;
 end;
