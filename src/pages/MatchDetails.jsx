@@ -102,6 +102,10 @@ function formatTime(value) {
   }).format(date)
 }
 
+function toLocalInputValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
 function roleLabel(role) {
   if (role === 'gk') return 'حارس مرمى'
   if (role === 'outfield') return 'لاعب ميدان'
@@ -403,6 +407,17 @@ export default function MatchDetails() {
   const [modalPositionBusy, setModalPositionBusy] = useState(false)
   const [modalPositionError, setModalPositionError] = useState('')
   const [modalPositionSuccess, setModalPositionSuccess] = useState('')
+  const [registrationEditOpen, setRegistrationEditOpen] = useState(false)
+  const [editRegistrationOpenAt, setEditRegistrationOpenAt] = useState('')
+  const [editRegistrationCloseAt, setEditRegistrationCloseAt] = useState('')
+  const [registrationEditBusy, setRegistrationEditBusy] = useState(false)
+  const [registrationEditError, setRegistrationEditError] = useState('')
+  const [registrationEditSuccess, setRegistrationEditSuccess] = useState('')
+  const [swapWaitlistTarget, setSwapWaitlistTarget] = useState(null)
+  const [swapConfirmPlayerId, setSwapConfirmPlayerId] = useState('')
+  const [swapRegistrationBusy, setSwapRegistrationBusy] = useState(false)
+  const [swapRegistrationError, setSwapRegistrationError] = useState('')
+  const [swapRegistrationSuccess, setSwapRegistrationSuccess] = useState('')
 
   useMatchRealtime(matchId)
 
@@ -934,6 +949,11 @@ export default function MatchDetails() {
     setDragTargetId(null)
   }, [matchId])
 
+  // Clear the swap confirmation when a different waitlisted player is picked.
+  useEffect(() => {
+    setSwapConfirmPlayerId('')
+  }, [swapWaitlistTarget?.id])
+
   async function swapPlayersByIds(playerAId, playerBId) {
     if (!match || pitchSwapBusy) return false
     setPitchSwapBusy(true)
@@ -1215,6 +1235,87 @@ export default function MatchDetails() {
     }
 
     setRegistrationSuccess('تم إلغاء تسجيلك في المباراة.')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleUpdateRegistrationTimes(event) {
+    event.preventDefault()
+    if (!match || registrationEditBusy) return
+    setRegistrationEditBusy(true)
+    setRegistrationEditError('')
+    setRegistrationEditSuccess('')
+
+    const openAt = editRegistrationOpenAt ? new Date(editRegistrationOpenAt) : null
+    const closeAt = editRegistrationCloseAt ? new Date(editRegistrationCloseAt) : null
+    const kickoff = new Date(match.kickoff_at)
+
+    if (!openAt || Number.isNaN(openAt.getTime()) || !closeAt || Number.isNaN(closeAt.getTime())) {
+      setRegistrationEditError('أدخل وقت فتح وإغلاق التسجيل بشكل صحيح.')
+      setRegistrationEditBusy(false)
+      return
+    }
+    if (openAt >= closeAt) {
+      setRegistrationEditError('وقت فتح التسجيل يجب أن يكون قبل وقت الإغلاق.')
+      setRegistrationEditBusy(false)
+      return
+    }
+    if (closeAt > kickoff) {
+      setRegistrationEditError('وقت إغلاق التسجيل يجب أن يكون قبل انطلاق المباراة أو مساوٍ له.')
+      setRegistrationEditBusy(false)
+      return
+    }
+
+    const { error } = await supabase.rpc('update_match', {
+      p_match_id: match.id,
+      p_registration_open_at: openAt.toISOString(),
+      p_registration_close_at: closeAt.toISOString(),
+    })
+    setRegistrationEditBusy(false)
+
+    if (error) {
+      setRegistrationEditError(toArabicError(error, 'تعذر تعديل أوقات التسجيل.'))
+      return
+    }
+
+    setRegistrationEditSuccess('تم تعديل أوقات التسجيل بنجاح.')
+    setRegistrationEditOpen(false)
+    setEditRegistrationOpenAt('')
+    setEditRegistrationCloseAt('')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
+  async function handleSwapRegistration(event) {
+    event.preventDefault()
+    if (!match || !swapWaitlistTarget || !swapConfirmPlayerId || swapRegistrationBusy) return
+    setSwapRegistrationBusy(true)
+    setSwapRegistrationError('')
+    setSwapRegistrationSuccess('')
+
+    const { error } = await supabase.rpc('swap_match_registration', {
+      p_match_id: match.id,
+      p_out_player_id: swapWaitlistTarget.player_id,
+      p_in_player_id: swapConfirmPlayerId,
+    })
+    setSwapRegistrationBusy(false)
+
+    if (error) {
+      setSwapRegistrationError(toArabicError(error, 'تعذر تنفيذ المبادلة.'))
+      return
+    }
+
+    const outName = directoryById.get(swapWaitlistTarget.player_id)?.full_name ?? 'لاعب'
+    const inName = directoryById.get(swapConfirmPlayerId)?.full_name ?? 'لاعب'
+    setSwapRegistrationSuccess(`تم استبدال ${outName} بـ ${inName} في قائمة المؤكدين.`)
+    setSwapWaitlistTarget(null)
+    setSwapConfirmPlayerId('')
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
@@ -1545,6 +1646,100 @@ export default function MatchDetails() {
           </div>
         </Card>
       </section>
+
+      {isAdmin ? (
+        <Card className="mt-6 border-brand-400/20 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <Clock className="size-5 text-brand-300" />
+                تعديل أوقات التسجيل
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                غير وقت فتح وإغلاق التسجيل لهذه المباراة. يجب أن يفتح قبل الإغلاق، وأن يغلق قبل أو عند انطلاق المباراة.
+              </p>
+              {registrationEditError ? (
+                <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
+                  {registrationEditError}
+                </p>
+              ) : null}
+              {registrationEditSuccess ? (
+                <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
+                  {registrationEditSuccess}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setRegistrationEditError('')
+                  setRegistrationEditSuccess('')
+                  if (match) {
+                    setEditRegistrationOpenAt(toLocalInputValue(new Date(match.registration_open_at)))
+                    setEditRegistrationCloseAt(toLocalInputValue(new Date(match.registration_close_at)))
+                  }
+                  setRegistrationEditOpen((value) => !value)
+                }}
+                className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-extrabold transition-colors ${registrationEditOpen ? 'border-brand-400/50 bg-brand-400/15 text-brand-200' : 'border-white/10 bg-white/5 text-white/70 hover:text-white'}`}
+              >
+                {registrationEditOpen ? 'إغلاق التعديل' : 'تعديل أوقات التسجيل'}
+              </button>
+            </div>
+          </div>
+
+          {registrationEditOpen && match ? (
+            <form onSubmit={handleUpdateRegistrationTimes} className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label htmlFor="edit-reg-open" className="text-xs font-bold text-white/55">
+                  فتح التسجيل
+                </label>
+                <input
+                  id="edit-reg-open"
+                  type="datetime-local"
+                  value={editRegistrationOpenAt}
+                  onChange={(event) => setEditRegistrationOpenAt(event.target.value)}
+                  required
+                  disabled={registrationEditBusy}
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-reg-close" className="text-xs font-bold text-white/55">
+                  إغلاق التسجيل
+                </label>
+                <input
+                  id="edit-reg-close"
+                  type="datetime-local"
+                  value={editRegistrationCloseAt}
+                  onChange={(event) => setEditRegistrationCloseAt(event.target.value)}
+                  required
+                  disabled={registrationEditBusy}
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
+                />
+              </div>
+              <div className="md:col-span-3 flex items-end gap-2">
+                <button
+                  type="submit"
+                  disabled={registrationEditBusy}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                >
+                  {registrationEditBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                  حفظ التعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegistrationEditOpen(false)}
+                  disabled={registrationEditBusy}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-xs font-bold text-white/60 transition-colors hover:text-white disabled:opacity-60"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </Card>
+      ) : null}
 
       {isAdmin ? (
         <Card className="mt-6 border-brand-400/20 p-5 sm:p-6">
@@ -2364,15 +2559,86 @@ export default function MatchDetails() {
                     <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/40">لاعبو الميدان</p>
                     <span className="text-[11px] font-bold text-white/35">{outfieldWaitlist.length} منتظر</span>
                   </div>
-                  {outfieldWaitlist.map((registration, index) => (
-                    <RegistrationPlayerRow
-                      key={registration.id}
-                      registration={registration}
-                      directoryById={directoryById}
-                      positionByCode={positionByCode}
-                      waitlistPosition={index + 1}
-                    />
-                  ))}
+                  {outfieldWaitlist.map((registration, index) => {
+                    const player = directoryById.get(registration.player_id)
+                    const isEditing = swapWaitlistTarget?.id === registration.id
+                    const confirmOptions = confirmedPlayers
+                      .filter((r) => r.roster_role !== 'gk')
+                      .map((r) => {
+                        const p = directoryById.get(r.player_id)
+                        return (
+                          <option key={r.id} value={r.player_id}>
+                            {p?.full_name ?? 'لاعب'} — الترتيب {r.queue_position}
+                          </option>
+                        )
+                      })
+                    return (
+                      <div key={registration.id} className="space-y-2">
+                        <RegistrationPlayerRow
+                          key={registration.id}
+                          registration={registration}
+                          directoryById={directoryById}
+                          positionByCode={positionByCode}
+                          waitlistPosition={index + 1}
+                        />
+                        {isAdmin ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSwapWaitlistTarget(isEditing ? null : registration)
+                              }
+                              disabled={swapRegistrationBusy}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/60 transition-colors hover:text-white disabled:opacity-40"
+                            >
+                              {isEditing ? <XCircle className="size-3.5" /> : <RotateCcw className="size-3.5" />}
+                              {isEditing ? 'إلغاء' : 'بدل بمؤكد'}
+                            </button>
+                            {isEditing && confirmOptions.length ? (
+                              <select
+                                value={swapConfirmPlayerId}
+                                onChange={(event) => setSwapConfirmPlayerId(event.target.value)}
+                                disabled={swapRegistrationBusy}
+                                required
+                                className="min-w-[140px] rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2 text-xs font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                              >
+                                <option value="">اختر مؤكدًا للمبادلة</option>
+                                {confirmOptions}
+                              </select>
+                            ) : null}
+                            {isEditing && confirmOptions.length && swapConfirmPlayerId ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault()
+                                  void handleSwapRegistration(event)
+                                }}
+                                disabled={swapRegistrationBusy}
+                                className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-brand-400/30 bg-brand-400/10 px-3 py-1.5 text-[11px] font-extrabold text-brand-200 transition-colors hover:bg-brand-400/20 disabled:opacity-40"
+                              >
+                                {swapRegistrationBusy ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-3.5" />
+                                )}
+                                تنفيذ
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {swapRegistrationError && swapWaitlistTarget?.id === registration.id ? (
+                          <p role="alert" className="mt-1 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
+                            {swapRegistrationError}
+                          </p>
+                        ) : null}
+                        {swapRegistrationSuccess && swapWaitlistTarget?.id === registration.id ? (
+                          <p role="status" className="mt-1 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
+                            {swapRegistrationSuccess}
+                          </p>
+                        ) : null}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : null}
 
@@ -2382,15 +2648,86 @@ export default function MatchDetails() {
                     <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/40">حراس المرمى</p>
                     <span className="text-[11px] font-bold text-white/35">{gkWaitlist.length} منتظر</span>
                   </div>
-                  {gkWaitlist.map((registration, index) => (
-                    <RegistrationPlayerRow
-                      key={registration.id}
-                      registration={registration}
-                      directoryById={directoryById}
-                      positionByCode={positionByCode}
-                      waitlistPosition={index + 1}
-                    />
-                  ))}
+                  {gkWaitlist.map((registration, index) => {
+                    const player = directoryById.get(registration.player_id)
+                    const isEditing = swapWaitlistTarget?.id === registration.id
+                    const confirmOptions = confirmedPlayers
+                      .filter((r) => r.roster_role === 'gk')
+                      .map((r) => {
+                        const p = directoryById.get(r.player_id)
+                        return (
+                          <option key={r.id} value={r.player_id}>
+                            {p?.full_name ?? 'لاعب'} — الترتيب {r.queue_position}
+                          </option>
+                        )
+                      })
+                    return (
+                      <div key={registration.id} className="space-y-2">
+                        <RegistrationPlayerRow
+                          key={registration.id}
+                          registration={registration}
+                          directoryById={directoryById}
+                          positionByCode={positionByCode}
+                          waitlistPosition={index + 1}
+                        />
+                        {isAdmin ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSwapWaitlistTarget(isEditing ? null : registration)
+                              }
+                              disabled={swapRegistrationBusy}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/60 transition-colors hover:text-white disabled:opacity-40"
+                            >
+                              {isEditing ? <XCircle className="size-3.5" /> : <RotateCcw className="size-3.5" />}
+                              {isEditing ? 'إلغاء' : 'بدل بمؤكد'}
+                            </button>
+                            {isEditing && confirmOptions.length ? (
+                              <select
+                                value={swapConfirmPlayerId}
+                                onChange={(event) => setSwapConfirmPlayerId(event.target.value)}
+                                disabled={swapRegistrationBusy}
+                                required
+                                className="min-w-[140px] rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2 text-xs font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                              >
+                                <option value="">اختر مؤكدًا للمبادلة</option>
+                                {confirmOptions}
+                              </select>
+                            ) : null}
+                            {isEditing && confirmOptions.length && swapConfirmPlayerId ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault()
+                                  void handleSwapRegistration(event)
+                                }}
+                                disabled={swapRegistrationBusy}
+                                className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-brand-400/30 bg-brand-400/10 px-3 py-1.5 text-[11px] font-extrabold text-brand-200 transition-colors hover:bg-brand-400/20 disabled:opacity-40"
+                              >
+                                {swapRegistrationBusy ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-3.5" />
+                                )}
+                                تنفيذ
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {swapRegistrationError && swapWaitlistTarget?.id === registration.id ? (
+                          <p role="alert" className="mt-1 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
+                            {swapRegistrationError}
+                          </p>
+                        ) : null}
+                        {swapRegistrationSuccess && swapWaitlistTarget?.id === registration.id ? (
+                          <p role="status" className="mt-1 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
+                            {swapRegistrationSuccess}
+                          </p>
+                        ) : null}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : null}
             </div>
