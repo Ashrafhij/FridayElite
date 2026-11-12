@@ -245,7 +245,13 @@ export default function Admin() {
     const fresh = freshProfiles?.find((item) => item.id === editTarget.id)
     if (fresh) setEditTarget(fresh)
     if (data) setEditTarget((current) => (current ? { ...current, ...data } : current))
-    await queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+      queryClient.invalidateQueries({ queryKey: ['matches'] }),
+      queryClient.invalidateQueries({ queryKey: ['match-details'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-assignments'] }),
+      queryClient.invalidateQueries({ queryKey: ['match-registrations'] }),
+    ])
   }
 
   async function handleEditQuickAction(action) {
