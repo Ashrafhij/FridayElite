@@ -40,9 +40,13 @@ begin
    limit 1;
 
   -- Update registration pool role for upcoming matches.
+  -- A gk_and_outfield player who is waitlisted means GK was full when they
+  -- registered, so they should move to the outfield queue now that they have
+  -- outfield positions. A gk_only player stays in the GK queue.
   update public.registrations r
      set roster_role = case
-       when v_new_class in ('gk_only', 'gk_and_outfield') then 'gk'
+       when v_new_class = 'gk_only' then 'gk'
+       when v_new_class = 'gk_and_outfield' then 'outfield'
        else 'outfield'
      end
    from public.matches m
@@ -63,7 +67,9 @@ begin
       and m.kickoff_at > now();
   end if;
 
-  -- Mark affected matches' teams as stale.
+  -- Re-evaluate waiting lists for affected matches so players can be promoted
+  -- if seats opened up (e.g. a GK cancellation now frees a spot, or an
+  -- outfield seat is available for a player who just added outfield positions).
   select array_agg(distinct m.id) into v_affected
     from public.registrations r
     join public.matches m on m.id = r.match_id
@@ -72,17 +78,9 @@ begin
      and m.status not in ('completed', 'cancelled')
      and m.kickoff_at > now();
 
-  if v_affected is null then
-    select array_agg(distinct m.id) into v_affected
-      from public.team_assignments ta
-      join public.matches m on m.id = ta.match_id
-     where ta.player_id = p_player_id
-       and m.status not in ('completed', 'cancelled')
-       and m.kickoff_at > now();
-  end if;
-
   if v_affected is not null then
     foreach v_affected_id in array v_affected loop
+      perform public.promote_waitlist(v_affected_id);
       update public.matches
          set teams_stale = true
        where id = v_affected_id;
