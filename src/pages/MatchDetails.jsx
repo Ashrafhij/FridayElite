@@ -418,6 +418,10 @@ export default function MatchDetails() {
   const [swapRegistrationBusy, setSwapRegistrationBusy] = useState(false)
   const [swapRegistrationError, setSwapRegistrationError] = useState('')
   const [swapRegistrationSuccess, setSwapRegistrationSuccess] = useState('')
+  const [addPlayerId, setAddPlayerId] = useState('')
+  const [addPlayerBusy, setAddPlayerBusy] = useState(false)
+  const [addPlayerError, setAddPlayerError] = useState('')
+  const [addPlayerSuccess, setAddPlayerSuccess] = useState('')
 
   useMatchRealtime(matchId)
 
@@ -679,6 +683,24 @@ export default function MatchDetails() {
       }
     },
     staleTime: 60_000,
+  })
+
+  // Approved players not yet registered for this match (for admin to add).
+  const availablePlayersQuery = useQuery({
+    queryKey: ['available-players', matchId],
+    enabled: Boolean(isAdmin && matchQuery.data),
+    queryFn: async () => {
+      const { data: allPlayers, error } = await supabase
+        .from('player_directory')
+        .select('id,full_name,avatar_url,jersey_number,is_external')
+        .eq('is_external', false)
+        .order('full_name', { ascending: true })
+      if (error) throw error
+
+      const registeredIds = new Set(registrations.map((r) => r.player_id))
+      return (allPlayers ?? []).filter((p) => !registeredIds.has(p.id) && p.id !== profile?.id)
+    },
+    staleTime: 30_000,
   })
 
   const directoryById = useMemo(
@@ -1376,6 +1398,35 @@ export default function MatchDetails() {
     ])
   }
 
+  async function handleAddExistingPlayer(event) {
+    event.preventDefault()
+    if (!match || !addPlayerId || addPlayerBusy) return
+    setAddPlayerBusy(true)
+    setAddPlayerError('')
+    setAddPlayerSuccess('')
+
+    const { error } = await supabase.rpc('admin_add_registration', {
+      p_match_id: match.id,
+      p_player_id: addPlayerId,
+    })
+    setAddPlayerBusy(false)
+
+    if (error) {
+      setAddPlayerError(toArabicError(error, 'تعذر إضافة اللاعب للمباراة.'))
+      return
+    }
+
+    const player = availablePlayersQuery.data?.find((p) => p.id === addPlayerId)
+    setAddPlayerSuccess(`تمت إضافة ${player?.full_name ?? 'اللاعب'} للمباراة.`)
+    setAddPlayerId('')
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-registrations', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['match-history-stats', matchId] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
+    ])
+  }
+
   async function handleCancelRegistration(registration) {
     if (!match || !registration) return false
     const player = directoryById.get(registration.player_id)
@@ -1935,6 +1986,78 @@ export default function MatchDetails() {
 
             {externalError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{externalError}</p> : null}
             {externalSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{externalSuccess}</p> : null}
+          </form>
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card className="mt-4 border-white/10 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
+                <UserPlus className="size-5 text-brand-300" />
+                إضافة لاعب مسجل
+              </h2>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                أضف لاعبًا لديه حساب بالفعل إلى تسجيل هذه المباراة.
+              </p>
+              {addPlayerError ? (
+                <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
+                  {addPlayerError}
+                </p>
+              ) : null}
+              {addPlayerSuccess ? (
+                <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
+                  {addPlayerSuccess}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleAddExistingPlayer}
+            className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]"
+          >
+            <div>
+              <label htmlFor="add-existing-player" className="text-xs font-bold text-white/55">
+                اللاعب
+              </label>
+              <select
+                id="add-existing-player"
+                value={addPlayerId}
+                onChange={(event) => setAddPlayerId(event.target.value)}
+                required
+                disabled={addPlayerBusy || availablePlayersQuery.isLoading}
+                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
+              >
+                <option value="">اختر لاعبًا</option>
+                {availablePlayersQuery.isLoading ? (
+                  <option value="" disabled>
+                   جارٍ تحميل اللاعبين…
+                  </option>
+                ) : availablePlayersQuery.data?.length === 0 ? (
+                  <option value="" disabled>
+                   جميع اللاعبين مسجلون بالفعل
+                  </option>
+                ) : (
+                  availablePlayersQuery.data.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.full_name}
+                      {player.jersey_number ? ` — رق ${player.jersey_number}` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={addPlayerBusy || !addPlayerId || availablePlayersQuery.isLoading}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-7"
+            >
+              {addPlayerBusy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              إضافة للمباراة
+            </button>
           </form>
         </Card>
       ) : null}
