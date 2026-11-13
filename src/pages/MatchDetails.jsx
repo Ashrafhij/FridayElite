@@ -2759,6 +2759,21 @@ export default function MatchDetails() {
                             {swapRegistrationSuccess}
                           </p>
                         ) : null}
+                        {isAdmin && !isEditing ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleCancelRegistration(registration)}
+                            disabled={cancelRegistrationId === registration.id}
+                            className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-400/[0.06] px-3 py-1.5 text-[11px] font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-40"
+                          >
+                            {cancelRegistrationId === registration.id ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
+                            حذف من الانتظار
+                          </button>
+                        ) : null}
                       </div>
                     )
                   })}
@@ -2847,6 +2862,21 @@ export default function MatchDetails() {
                           <p role="status" className="mt-1 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
                             {swapRegistrationSuccess}
                           </p>
+                        ) : null}
+                        {isAdmin && !isEditing ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleCancelRegistration(registration)}
+                            disabled={cancelRegistrationId === registration.id}
+                            className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-400/[0.06] px-3 py-1.5 text-[11px] font-bold text-red-200 transition-colors hover:bg-red-400/10 disabled:opacity-40"
+                          >
+                            {cancelRegistrationId === registration.id ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
+                            حذف من الانتظار
+                          </button>
                         ) : null}
                       </div>
                     )
