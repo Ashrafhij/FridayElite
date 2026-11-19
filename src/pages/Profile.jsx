@@ -432,7 +432,7 @@ export default function Profile() {
               <input
                 ref={avatarInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                 className="sr-only"
                 onChange={handleAvatarChange}
                 disabled={uploadingAvatar}
