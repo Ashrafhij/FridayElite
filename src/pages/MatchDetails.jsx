@@ -19,6 +19,7 @@ import {
   Palette,
   Plus,
   RotateCcw,
+  Settings2,
   Share2,
   Shuffle,
   Star,
@@ -66,6 +67,15 @@ const TEAM_COLOR_PRESETS = [
   { label: 'أبيض', value: '#f5f3ea' },
   { label: 'برتقالي', value: '#ff9500' },
   { label: 'بنفسجي', value: '#a78bfa' },
+]
+
+const ADMIN_TOOL_TABS = [
+  { id: 'basic', label: 'الأساسية', icon: Clock },
+  { id: 'links', label: 'الروابط', icon: Link2 },
+  { id: 'players', label: 'اللاعبون', icon: UserPlus },
+  { id: 'result', label: 'النتيجة', icon: Trophy },
+  { id: 'highlights', label: 'المقاطع', icon: Video },
+  { id: 'danger', label: 'حذف', icon: Trash2 },
 ]
 
 function formatDateTime(value) {
@@ -413,7 +423,8 @@ export default function MatchDetails() {
   const [modalPositionBusy, setModalPositionBusy] = useState(false)
   const [modalPositionError, setModalPositionError] = useState('')
   const [modalPositionSuccess, setModalPositionSuccess] = useState('')
-  const [registrationEditOpen, setRegistrationEditOpen] = useState(false)
+  const [adminTab, setAdminTab] = useState('basic')
+  const [playerAddMode, setPlayerAddMode] = useState('existing')
   const [editRegistrationOpenAt, setEditRegistrationOpenAt] = useState('')
   const [editRegistrationCloseAt, setEditRegistrationCloseAt] = useState('')
   const [registrationEditBusy, setRegistrationEditBusy] = useState(false)
@@ -849,6 +860,14 @@ export default function MatchDetails() {
     if (teamA?.color) setTeamColorA(teamA.color)
     if (teamB?.color) setTeamColorB(teamB.color)
   }, [teams])
+
+  // Registration times live inside the admin tools panel, so keep the form
+  // in sync with the match instead of pre-filling it on a button click.
+  useEffect(() => {
+    if (!match?.registration_open_at || !match?.registration_close_at) return
+    setEditRegistrationOpenAt(toLocalInputValue(new Date(match.registration_open_at)))
+    setEditRegistrationCloseAt(toLocalInputValue(new Date(match.registration_close_at)))
+  }, [match?.registration_open_at, match?.registration_close_at])
 
   // Pre-fill the quick-stats editor when the admin opens a player.
   useEffect(() => {
@@ -1339,9 +1358,6 @@ export default function MatchDetails() {
     }
 
     setRegistrationEditSuccess('تم تعديل أوقات التسجيل بنجاح.')
-    setRegistrationEditOpen(false)
-    setEditRegistrationOpenAt('')
-    setEditRegistrationCloseAt('')
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['match-details', matchId] }),
       queryClient.invalidateQueries({ queryKey: ['matches', 'schedule'] }),
@@ -1824,582 +1840,508 @@ export default function MatchDetails() {
       </section>
 
       {isAdmin ? (
-        <Card className="mt-6 border-brand-400/20 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <Clock className="size-5 text-brand-300" />
-                تعديل أوقات التسجيل
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                غير وقت فتح وإغلاق التسجيل لهذه المباراة. يجب أن يفتح قبل الإغلاق، وأن يغلق قبل أو عند انطلاق المباراة.
-              </p>
-              {registrationEditError ? (
-                <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
-                  {registrationEditError}
-                </p>
-              ) : null}
-              {registrationEditSuccess ? (
-                <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
-                  {registrationEditSuccess}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setRegistrationEditError('')
-                  setRegistrationEditSuccess('')
-                  if (match) {
-                    setEditRegistrationOpenAt(toLocalInputValue(new Date(match.registration_open_at)))
-                    setEditRegistrationCloseAt(toLocalInputValue(new Date(match.registration_close_at)))
-                  }
-                  setRegistrationEditOpen((value) => !value)
-                }}
-                className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-extrabold transition-colors ${registrationEditOpen ? 'border-brand-400/50 bg-brand-400/15 text-brand-200' : 'border-white/10 bg-white/5 text-white/70 hover:text-white'}`}
-              >
-                {registrationEditOpen ? 'إغلاق التعديل' : 'تعديل أوقات التسجيل'}
-              </button>
-            </div>
-          </div>
-
-          {registrationEditOpen && match ? (
-            <form onSubmit={handleUpdateRegistrationTimes} className="mt-4 grid gap-4 md:grid-cols-3">
-              <div>
-                <label htmlFor="edit-reg-open" className="text-xs font-bold text-white/55">
-                  فتح التسجيل
-                </label>
-                <input
-                  id="edit-reg-open"
-                  type="datetime-local"
-                  value={editRegistrationOpenAt}
-                  onChange={(event) => setEditRegistrationOpenAt(event.target.value)}
-                  required
-                  disabled={registrationEditBusy}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
-                />
+        <section className="mt-6" aria-label="أدوات المباراة">
+          <Card className="overflow-hidden border-brand-400/20">
+            <div className="border-b border-white/10 bg-white/[0.02] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
+                  <Settings2 className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-base font-extrabold text-sand-100">أدوات المباراة</h2>
+                  <p className="mt-1 text-xs leading-6 text-white/50">إجراءات الإدارة لهذه المباراة، مرتبة في مكان واحد.</p>
+                </div>
               </div>
-              <div>
-                <label htmlFor="edit-reg-close" className="text-xs font-bold text-white/55">
-                  إغلاق التسجيل
-                </label>
-                <input
-                  id="edit-reg-close"
-                  type="datetime-local"
-                  value={editRegistrationCloseAt}
-                  onChange={(event) => setEditRegistrationCloseAt(event.target.value)}
-                  required
-                  disabled={registrationEditBusy}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
-                />
-              </div>
-              <div className="md:col-span-3 flex items-end gap-2">
-                <button
-                  type="submit"
-                  disabled={registrationEditBusy}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
-                >
-                  {registrationEditBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                  حفظ التعديل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRegistrationEditOpen(false)}
-                  disabled={registrationEditBusy}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-xs font-bold text-white/60 transition-colors hover:text-white disabled:opacity-60"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </form>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {isAdmin ? (
-        <Card className="mt-6 border-brand-400/20 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <Shuffle className="size-5 text-brand-300" />
-                توزيع الفريقين
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                {teams.length
-                  ? 'يمكنك إعادة التوزيع؛ سيُستبدل التوزيع السابق ويُرسل تحديث للاعبين.'
-                  : `يُفعّل الزر عند اكتمال 18 لاعبًا مؤكدًا. الحالي ${confirmedCount}/18.`}
-              </p>
-              {generateError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{generateError}</p> : null}
-              {generateSuccess ? <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">{generateSuccess}</p> : null}
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleGenerateTeams()}
-              disabled={!canGenerateTeams || generating}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
-            >
-              {generating ? <Loader2 className="size-4 animate-spin" /> : <Shuffle className="size-4" />}
-              {teams.length ? 'إعادة توزيع الفريقين' : 'توليد توزيع الفريقين'}
-            </button>
-          </div>
-        </Card>
-      ) : null}
-
-
-
-      {isAdmin ? (
-        <Card className="mt-4 border-white/10 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <Link2 className="size-5 text-brand-300" />
-                رابط تقييم اللاعبين
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                أرسل هذا الرابط للاعبين بعد نهاية المباراة؛ سيفتح صفحة التقييم مباشرة على الميدان. يجب أن يكون اللاعب مسجلًا دخوله ومشاركًا في المباراة.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleCopyRatingLink()}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
-            >
-              {ratingLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {ratingLinkCopied ? 'تم نسخ الرابط' : 'نسخ رابط التقييم'}
-            </button>
-          </div>
-          <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
-            {getRatingLink()}
-          </p>
-        </Card>
-      ) : null}
-
-      {isAdmin ? (
-        <Card className="mt-4 border-white/10 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <UserPlus className="size-5 text-brand-300" />
-                رابط تسجيل اللاعبين
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                أرسل هذا الرابط للاعبين. يفتح صفحة تسجيل سريعة: يُدخل رقم هاتفه، يظهر اسمه، ويضغط تسجيل — دون حاجة لتسجيل الدخول أو انتظار الموافقة.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-              <button
-                type="button"
-                onClick={handleShareRegisterLink}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
-              >
-                <Share2 className="size-4" />
-                مشاركة عبر واتساب
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCopyRegisterLink()}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:border-white/20 hover:text-white"
-              >
-                {registerLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                {registerLinkCopied ? 'تم نسخ الرابط' : 'نسخ الرابط'}
-              </button>
-            </div>
-          </div>
-          <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
-            {getRegisterLink()}
-          </p>
-        </Card>
-      ) : null}
-
-      {isAdmin && result ? (
-        <Card className="mt-4 border-white/10 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <Trophy className="size-5 text-brand-300" />
-                رابط نتيجة المباراة
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                أرسل هذا الرابط للفريق بعد نهاية المباراة؛ سيفتح صفحة النتيجة الجميلة مع زر تقييم اللاعبين.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-              <button
-                type="button"
-                onClick={() => void handleCopyResultLink()}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
-              >
-                {resultLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                {resultLinkCopied ? 'تم نسخ الرابط' : 'نسخ رابط النتيجة'}
-              </button>
-              <Link
-                to={`/matches/${matchId}/result`}
-                className="inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
-              >
-                فتح صفحة النتيجة
-                <ArrowLeft className="size-3.5" />
-              </Link>
-            </div>
-          </div>
-          <p dir="ltr" className="mt-3 truncate rounded-xl border border-white/10 bg-pitch-950/50 px-3 py-2 text-[11px] text-white/45">
-            {getResultLink()}
-          </p>
-        </Card>
-      ) : null}
-
-      {isAdmin ? (
-        <Card className="mt-4 border-white/10 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <UserPlus className="size-5 text-brand-300" />
-                إضافة لاعب خارجي
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                لللاعبين خارج المجموعة في مباراة واحدة فقط؛ لا يحتاج حسابًا أو تسجيلًا مسبقًا.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleAddExternalPlayer} className="mt-4 grid gap-4 md:grid-cols-[1fr_220px_auto]">
-            <div>
-              <label htmlFor="external-player-name" className="text-xs font-bold text-white/55">
-                اسم اللاعب
-              </label>
-              <input
-                id="external-player-name"
-                type="text"
-                value={externalName}
-                onChange={(event) => setExternalName(event.target.value)}
-                maxLength={80}
-                required
-                disabled={externalBusy}
-                placeholder="اسم اللاعب الخارجي"
-                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="external-player-position" className="text-xs font-bold text-white/55">
-                المركز (اختياري)
-              </label>
-              <select
-                id="external-player-position"
-                value={externalPosition}
-                onChange={(event) => setExternalPosition(event.target.value)}
-                disabled={externalBusy}
-                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
-              >
-                <option value="">بدون مركز محدد</option>
-                {(positionsQuery.data ?? []).map((position) => (
-                  <option key={position.code} value={position.code}>
-                    {position.name_ar}
-                  </option>
+              <div className="-mx-1 mt-4 flex gap-1 overflow-x-auto px-1 pb-1" role="tablist" aria-label="أقسام أدوات المباراة">
+                {ADMIN_TOOL_TABS.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={adminTab === id}
+                    onClick={() => setAdminTab(id)}
+                    className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-extrabold transition-colors ${adminTab === id ? 'bg-brand-400 text-pitch-950' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <Icon className="size-3.5" />
+                    {label}
+                  </button>
                 ))}
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={externalBusy}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-7"
-            >
-              {externalBusy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              إضافة للمباراة
-            </button>
-
-            {externalError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{externalError}</p> : null}
-            {externalSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{externalSuccess}</p> : null}
-          </form>
-        </Card>
-      ) : null}
-
-      {isAdmin ? (
-        <Card className="mt-4 border-white/10 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-sand-100">
-                <UserPlus className="size-5 text-brand-300" />
-                إضافة لاعب مسجل
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                أضف لاعبًا لديه حساب بالفعل إلى تسجيل هذه المباراة.
-              </p>
-              {addPlayerError ? (
-                <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
-                  {addPlayerError}
-                </p>
-              ) : null}
-              {addPlayerSuccess ? (
-                <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
-                  {addPlayerSuccess}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <form
-            onSubmit={handleAddExistingPlayer}
-            className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]"
-          >
-            <div>
-              <label htmlFor="add-existing-player" className="text-xs font-bold text-white/55">
-                اللاعب
-              </label>
-              <select
-                id="add-existing-player"
-                value={addPlayerId}
-                onChange={(event) => setAddPlayerId(event.target.value)}
-                required
-                disabled={addPlayerBusy || availablePlayersQuery.isLoading}
-                className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
-              >
-                <option value="">اختر لاعبًا</option>
-                {availablePlayersQuery.isLoading ? (
-                  <option value="" disabled>
-                   جارٍ تحميل اللاعبين…
-                  </option>
-                ) : availablePlayersQuery.data?.length === 0 ? (
-                  <option value="" disabled>
-                   جميع اللاعبين مسجلون بالفعل
-                  </option>
-                ) : (
-                  availablePlayersQuery.data.map((player) => (
-                    <option key={player.id} value={player.id}>
-                      {player.full_name}
-                      {player.jersey_number ? ` — رق ${player.jersey_number}` : ''}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={addPlayerBusy || !addPlayerId || availablePlayersQuery.isLoading}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60 md:mt-7"
-            >
-              {addPlayerBusy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              إضافة للمباراة
-            </button>
-          </form>
-        </Card>
-      ) : null}
-
-      {/* Delete match (admin only) */}
-      {isAdmin ? (
-        <Card className="mt-4 border-red-400/25 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-red-200">
-                <Trash2 className="size-5 text-red-300" />
-                حذف المباراة
-              </h2>
-              <p className="mt-1 text-xs leading-6 text-white/50">
-                سيتم حذف المباراة نهائيًا مع جميع التسجيلات والفرق والنتيجة والتقييمات. قد تُعاد إنشاؤها تلقائيًا إذا كانت مباراة أسبوعية مجدولة.
-              </p>
-              {deleteError ? <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{deleteError}</p> : null}
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleDeleteMatch()}
-              disabled={deleteBusy}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-red-400/40 bg-red-400/10 px-5 py-3 text-sm font-extrabold text-red-200 transition-colors hover:bg-red-400/20 disabled:opacity-60"
-            >
-              {deleteBusy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-              حذف المباراة نهائيًا
-            </button>
-          </div>
-        </Card>
-      ) : null}
-
-      {/* Result entry (admin only) — the public result is shown on the pitch above */}
-      {isAdmin ? (
-        <section className="mt-8" aria-label="إدخال نتيجة المباراة">
-          <Card className="border-brand-400/20 p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-base font-extrabold text-sand-100">{result ? 'تعديل نتيجة المباراة' : 'إدخال نتيجة المباراة'}</h3>
-                <p className="mt-1 text-xs leading-6 text-white/50">
-                  {teams.length
-                    ? 'أدخل النتيجة النهائية والهدافين لكل فريق؛ يجب أن يطابق مجموع الأهداف النتيجة.'
-                    : 'أنشئ توزيع الفريقين أولًا لاختيار الهدافين حسب الفريق.'}
-                </p>
               </div>
-              <button
-                type="button"
-                onClick={openResultForm}
-                disabled={!teams.length}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
-              >
-                <Trophy className="size-4" />
-                {result ? 'تعديل النتيجة' : 'إدخال النتيجة'}
-              </button>
             </div>
 
-            {resultFormOpen ? (
-              <form onSubmit={handleSubmitResult} className="mt-5 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label htmlFor="result-score-a" className="text-xs font-bold text-white/55">أهداف {teams.find((team) => team.side === 'A')?.name_ar ?? 'الفريق أ'}</label>
-                  <input id="result-score-a" type="number" min="0" max="99" value={teamAScore} onChange={(event) => setTeamAScore(event.target.value)} required disabled={resultBusy} className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50" />
-                </div>
-                <div>
-                  <label htmlFor="result-score-b" className="text-xs font-bold text-white/55">أهداف {teams.find((team) => team.side === 'B')?.name_ar ?? 'الفريق ب'}</label>
-                  <input id="result-score-b" type="number" min="0" max="99" value={teamBScore} onChange={(event) => setTeamBScore(event.target.value)} required disabled={resultBusy} className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50" />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label htmlFor="result-notes" className="text-xs font-bold text-white/55">ملاحظات النتيجة (اختياري)</label>
-                  <textarea id="result-notes" value={resultNotes} onChange={(event) => setResultNotes(event.target.value)} rows={3} disabled={resultBusy} className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50" />
-                </div>
-
-                <div className="md:col-span-2">
-                  <p className="text-xs font-bold text-white/55">الهدافون</p>
-                  <div className="mt-3 space-y-3">
-                    {scorersDraft.map((scorer, index) => (
-                      <div key={index} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 md:grid-cols-[1fr_110px_110px_auto]">
-                        <select
-                          value={scorer.player_id}
-                          onChange={(event) => updateScorerDraft(index, 'player_id', event.target.value)}
-                          disabled={resultBusy}
+            <div className="p-4 sm:p-5" role="tabpanel">
+              {adminTab === 'basic' ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex items-start gap-2.5">
+                      <Clock className="mt-0.5 size-4 shrink-0 text-brand-300" />
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-extrabold text-sand-100">أوقات التسجيل</h3>
+                        <p className="mt-1 text-[11px] leading-5 text-white/45">
+                          يفتح التسجيل قبل إغلاقه، ويُغلق قبل انطلاق المباراة أو عندها.
+                        </p>
+                      </div>
+                    </div>
+                    {registrationEditError ? (
+                      <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">
+                        {registrationEditError}
+                      </p>
+                    ) : null}
+                    {registrationEditSuccess ? (
+                      <p role="status" className="mt-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">
+                        {registrationEditSuccess}
+                      </p>
+                    ) : null}
+                    <form onSubmit={handleUpdateRegistrationTimes} className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="edit-reg-open" className="text-xs font-bold text-white/55">فتح التسجيل</label>
+                        <input
+                          id="edit-reg-open"
+                          type="datetime-local"
+                          value={editRegistrationOpenAt}
+                          onChange={(event) => setEditRegistrationOpenAt(event.target.value)}
                           required
-                          className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
-                          aria-label="اللاعب الهداف"
-                        >
-                          <option value="">اختر لاعبًا</option>
-                          {assignedPlayerOptions.map(({ assignment, player, team }) => (
-                            <option key={assignment.id} value={assignment.player_id}>
-                              {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''}
-                            </option>
-                          ))}
-                        </select>
-                        <label className="grid gap-1 text-[11px] font-bold text-white/45">
-                          أهداف
-                          <input type="number" min="0" max="30" value={scorer.goals} onChange={(event) => updateScorerDraft(index, 'goals', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
-                        </label>
-                        <label className="grid gap-1 text-[11px] font-bold text-white/45">
-                          تمريرات
-                          <input type="number" min="0" max="30" value={scorer.assists} onChange={(event) => updateScorerDraft(index, 'assists', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
-                        </label>
+                          disabled={registrationEditBusy}
+                          className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="edit-reg-close" className="text-xs font-bold text-white/55">إغلاق التسجيل</label>
+                        <input
+                          id="edit-reg-close"
+                          type="datetime-local"
+                          value={editRegistrationCloseAt}
+                          onChange={(event) => setEditRegistrationCloseAt(event.target.value)}
+                          required
+                          disabled={registrationEditBusy}
+                          className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors focus:border-brand-400/50"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2 sm:col-span-2">
                         <button
-                          type="button"
-                          onClick={() => setScorersDraft((current) => current.filter((_, scorerIndex) => scorerIndex !== index))}
-                          disabled={resultBusy}
-                          className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-red-400/25 text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50"
-                          aria-label="إزالة الهداف"
+                          type="submit"
+                          disabled={registrationEditBusy}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-5 py-2.5 text-sm font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
                         >
-                          <Trash2 className="size-4" />
+                          {registrationEditBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                          حفظ التعديل
                         </button>
                       </div>
-                    ))}
+                    </form>
                   </div>
-                  <button type="button" onClick={() => setScorersDraft((current) => [...current, { player_id: '', goals: '1', assists: '0' }])} disabled={resultBusy} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60">
-                    <Plus className="size-4" />
-                    إضافة هداف
-                  </button>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-2.5">
+                        <Shuffle className="mt-0.5 size-4 shrink-0 text-brand-300" />
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-extrabold text-sand-100">توزيع الفريقين</h3>
+                          <p className="mt-1 text-[11px] leading-5 text-white/45">
+                            {teams.length
+                              ? 'يمكنك إعادة التوزيع؛ سيُستبدل التوزيع السابق ويُرسل تحديث للاعبين.'
+                              : `يُفعّل عند اكتمال 18 لاعبًا مؤكدًا. الحالي ${confirmedCount}/18.`}
+                          </p>
+                          {generateError ? <p role="alert" className="mt-2 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{generateError}</p> : null}
+                          {generateSuccess ? <p role="status" className="mt-2 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-brand-200">{generateSuccess}</p> : null}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleGenerateTeams()}
+                        disabled={!canGenerateTeams || generating}
+                        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                      >
+                        {generating ? <Loader2 className="size-4 animate-spin" /> : <Shuffle className="size-4" />}
+                        {teams.length ? 'إعادة التوزيع' : 'توليد الفرق'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ) : null}
 
-                {resultError ? <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-2">{resultError}</p> : null}
-                {resultSuccess ? <p role="status" className="rounded-2xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-2">{resultSuccess}</p> : null}
+              {adminTab === 'links' ? (
+                <div className="space-y-2.5">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-sm font-extrabold text-sand-100"><Star className="size-4 text-brand-300" /> رابط التقييم</p>
+                        <p className="mt-1 text-[11px] leading-5 text-white/45">أرسله للاعبين بعد المباراة؛ يفتح التقييم مباشرة.</p>
+                        <p dir="ltr" className="mt-2 truncate rounded-lg border border-white/10 bg-pitch-950/50 px-2.5 py-1.5 text-[10px] text-white/40">{getRatingLink()}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyRatingLink()}
+                        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+                      >
+                        {ratingLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                        {ratingLinkCopied ? 'تم النسخ' : 'نسخ الرابط'}
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="flex flex-wrap gap-2 md:col-span-2">
-                  <button type="submit" disabled={resultBusy} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60">
-                    {resultBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                    حفظ النتيجة
-                  </button>
-                  <button type="button" onClick={() => setResultFormOpen(false)} disabled={resultBusy} className="inline-flex min-h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/60 transition-colors hover:text-white disabled:opacity-60">
-                    إلغاء
-                  </button>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-sm font-extrabold text-sand-100"><UserPlus className="size-4 text-brand-300" /> رابط التسجيل</p>
+                        <p className="mt-1 text-[11px] leading-5 text-white/45">تسجيل سريع برقم الهاتف، دون تسجيل دخول أو انتظار موافقة.</p>
+                        <p dir="ltr" className="mt-2 truncate rounded-lg border border-white/10 bg-pitch-950/50 px-2.5 py-1.5 text-[10px] text-white/40">{getRegisterLink()}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleShareRegisterLink}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+                        >
+                          <Share2 className="size-4" />
+                          واتساب
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyRegisterLink()}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:text-white"
+                        >
+                          {registerLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                          {registerLinkCopied ? 'تم النسخ' : 'نسخ'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {result ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-2 text-sm font-extrabold text-sand-100"><Trophy className="size-4 text-brand-300" /> رابط النتيجة</p>
+                          <p className="mt-1 text-[11px] leading-5 text-white/45">لوحة النتيجة الجميلة مع زر تقييم اللاعبين.</p>
+                          <p dir="ltr" className="mt-2 truncate rounded-lg border border-white/10 bg-pitch-950/50 px-2.5 py-1.5 text-[10px] text-white/40">{getResultLink()}</p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyResultLink()}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300"
+                          >
+                            {resultLinkCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                            {resultLinkCopied ? 'تم النسخ' : 'نسخ'}
+                          </button>
+                          <Link
+                            to={`/matches/${matchId}/result`}
+                            className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-brand-300 transition-colors hover:text-brand-200"
+                          >
+                            فتح الصفحة
+                            <ArrowLeft className="size-3.5" />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </form>
-            ) : null}
-          </Card>
-        </section>
-      ) : null}
+              ) : null}
 
-      {/* Highlight uploads (admin only) */}
-      {isAdmin ? (
-        <section className="mt-8" aria-label="رفع مقاطع المباراة">
-          <Card className="border-brand-400/20 p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
-                <Video className="size-5" />
-              </span>
-              <div>
-                <h3 className="text-base font-extrabold text-sand-100">أهداف ومقاطع المباراة</h3>
-                <p className="mt-1 text-xs leading-6 text-white/50">
-                  ارفع صورة أو فيديو لهدف أو لحظة مميزة؛ سيظهر في صفحة المباراة وصفحة النتيجة للاعبين.
-                </p>
-              </div>
-            </div>
+              {adminTab === 'players' ? (
+                <div>
+                  <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-pitch-950/50 p-1" role="tablist" aria-label="نوع اللاعب المضاف">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={playerAddMode === 'existing'}
+                      onClick={() => setPlayerAddMode('existing')}
+                      className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl text-xs font-extrabold transition-colors ${playerAddMode === 'existing' ? 'bg-brand-400 text-pitch-950' : 'text-white/50 hover:text-white'}`}
+                    >
+                      <UserCheck className="size-4" />
+                      لاعب مسجّل
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={playerAddMode === 'external'}
+                      onClick={() => setPlayerAddMode('external')}
+                      className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl text-xs font-extrabold transition-colors ${playerAddMode === 'external' ? 'bg-brand-400 text-pitch-950' : 'text-white/50 hover:text-white'}`}
+                    >
+                      <UserPlus className="size-4" />
+                      لاعب ضيف
+                    </button>
+                  </div>
 
-            <form onSubmit={handleUploadHighlight} className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-              <div className="md:col-span-2">
-                <input
-                  ref={highlightInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
-                  onChange={handleHighlightFileChange}
-                  disabled={highlightBusy}
-                  className="hidden"
-                  aria-label="ملف المقطع"
-                />
-                <button
-                  type="button"
-                  onClick={() => highlightInputRef.current?.click()}
-                  disabled={highlightBusy}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60"
-                >
-                  <ImageIcon className="size-4" />
-                  {highlightFile ? 'تغيير الملف' : 'اختر صورة أو فيديو'}
-                </button>
-                {highlightFile ? (
-                  <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/50">
-                    <span className="truncate font-bold text-sand-100">{highlightFile.file.name}</span>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5">
-                      {highlightFile.mediaType === 'video' ? 'فيديو' : 'صورة'}
+                  {playerAddMode === 'existing' ? (
+                    <form onSubmit={handleAddExistingPlayer} className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div>
+                        <label htmlFor="add-existing-player" className="text-xs font-bold text-white/55">اللاعب</label>
+                        <select
+                          id="add-existing-player"
+                          value={addPlayerId}
+                          onChange={(event) => setAddPlayerId(event.target.value)}
+                          required
+                          disabled={addPlayerBusy || availablePlayersQuery.isLoading}
+                          className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                        >
+                          <option value="">اختر لاعبًا</option>
+                          {availablePlayersQuery.isLoading ? (
+                            <option value="" disabled>جارٍ تحميل اللاعبين…</option>
+                          ) : availablePlayersQuery.data?.length === 0 ? (
+                            <option value="" disabled>جميع اللاعبين مسجلون بالفعل</option>
+                          ) : (
+                            availablePlayersQuery.data?.map((player) => (
+                              <option key={player.id} value={player.id}>
+                                {player.full_name}
+                                {player.jersey_number ? ` — رق ${player.jersey_number}` : ''}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={addPlayerBusy || !addPlayerId || availablePlayersQuery.isLoading}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                      >
+                        {addPlayerBusy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                        إضافة للمباراة
+                      </button>
+                      {addPlayerError ? <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 sm:col-span-2">{addPlayerError}</p> : null}
+                      {addPlayerSuccess ? <p role="status" className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 sm:col-span-2">{addPlayerSuccess}</p> : null}
+                    </form>
+                  ) : (
+                    <form onSubmit={handleAddExternalPlayer} className="grid gap-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
+                      <div>
+                        <label htmlFor="external-player-name" className="text-xs font-bold text-white/55">اسم اللاعب</label>
+                        <input
+                          id="external-player-name"
+                          type="text"
+                          value={externalName}
+                          onChange={(event) => setExternalName(event.target.value)}
+                          maxLength={80}
+                          required
+                          disabled={externalBusy}
+                          placeholder="اسم اللاعب الخارجي"
+                          className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none placeholder:text-white/25 focus:border-brand-400/50"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="external-player-position" className="text-xs font-bold text-white/55">المركز (اختياري)</label>
+                        <select
+                          id="external-player-position"
+                          value={externalPosition}
+                          onChange={(event) => setExternalPosition(event.target.value)}
+                          disabled={externalBusy}
+                          className="mt-2 min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                        >
+                          <option value="">بدون مركز</option>
+                          {(positionsQuery.data ?? []).map((position) => (
+                            <option key={position.code} value={position.code}>{position.name_ar}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={externalBusy}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                      >
+                        {externalBusy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                        إضافة للمباراة
+                      </button>
+                      {externalError ? <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 sm:col-span-3">{externalError}</p> : null}
+                      {externalSuccess ? <p role="status" className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 sm:col-span-3">{externalSuccess}</p> : null}
+                    </form>
+                  )}
+                </div>
+              ) : null}
+
+              {adminTab === 'result' ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-sand-100">{result ? 'تعديل نتيجة المباراة' : 'إدخال نتيجة المباراة'}</h3>
+                      <p className="mt-1 text-[11px] leading-5 text-white/45">
+                        {teams.length
+                          ? 'أدخل النتيجة والهدافين؛ يجب أن يطابق مجموع الأهداف النتيجة.'
+                          : 'أنشئ توزيع الفريقين أولًا لاختيار الهدافين.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openResultForm}
+                      disabled={!teams.length}
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                    >
+                      <Trophy className="size-4" />
+                      {result ? 'تعديل النتيجة' : 'إدخال النتيجة'}
+                    </button>
+                  </div>
+
+                  {resultFormOpen ? (
+                    <form onSubmit={handleSubmitResult} className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label htmlFor="result-score-a" className="text-xs font-bold text-white/55">أهداف {teams.find((team) => team.side === 'A')?.name_ar ?? 'الفريق أ'}</label>
+                        <input id="result-score-a" type="number" min="0" max="99" value={teamAScore} onChange={(event) => setTeamAScore(event.target.value)} required disabled={resultBusy} className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                      </div>
+                      <div>
+                        <label htmlFor="result-score-b" className="text-xs font-bold text-white/55">أهداف {teams.find((team) => team.side === 'B')?.name_ar ?? 'الفريق ب'}</label>
+                        <input id="result-score-b" type="number" min="0" max="99" value={teamBScore} onChange={(event) => setTeamBScore(event.target.value)} required disabled={resultBusy} className="mt-2 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label htmlFor="result-notes" className="text-xs font-bold text-white/55">ملاحظات النتيجة (اختياري)</label>
+                        <textarea id="result-notes" value={resultNotes} onChange={(event) => setResultNotes(event.target.value)} rows={3} disabled={resultBusy} className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <p className="text-xs font-bold text-white/55">الهدافون</p>
+                        <div className="mt-3 space-y-3">
+                          {scorersDraft.map((scorer, index) => (
+                            <div key={index} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 md:grid-cols-[1fr_100px_100px_auto]">
+                              <select
+                                value={scorer.player_id}
+                                onChange={(event) => updateScorerDraft(index, 'player_id', event.target.value)}
+                                disabled={resultBusy}
+                                required
+                                className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50"
+                                aria-label="اللاعب الهداف"
+                              >
+                                <option value="">اختر لاعبًا</option>
+                                {assignedPlayerOptions.map(({ assignment, player, team }) => (
+                                  <option key={assignment.id} value={assignment.player_id}>
+                                    {player?.full_name ?? 'لاعب'} — {team?.name_ar ?? ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <label className="grid gap-1 text-[11px] font-bold text-white/45">
+                                أهداف
+                                <input type="number" min="0" max="30" value={scorer.goals} onChange={(event) => updateScorerDraft(index, 'goals', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                              </label>
+                              <label className="grid gap-1 text-[11px] font-bold text-white/45">
+                                تمريرات
+                                <input type="number" min="0" max="30" value={scorer.assists} onChange={(event) => updateScorerDraft(index, 'assists', event.target.value)} disabled={resultBusy} required className="w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2.5 text-sm font-semibold text-sand-100 outline-none focus:border-brand-400/50" />
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setScorersDraft((current) => current.filter((_, scorerIndex) => scorerIndex !== index))}
+                                disabled={resultBusy}
+                                className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-red-400/25 text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50"
+                                aria-label="إزالة الهداف"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button type="button" onClick={() => setScorersDraft((current) => [...current, { player_id: '', goals: '1', assists: '0' }])} disabled={resultBusy} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60">
+                          <Plus className="size-4" />
+                          إضافة هداف
+                        </button>
+                      </div>
+
+                      {resultError ? <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-2">{resultError}</p> : null}
+                      {resultSuccess ? <p role="status" className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-2">{resultSuccess}</p> : null}
+
+                      <div className="flex flex-wrap gap-2 md:col-span-2">
+                        <button type="submit" disabled={resultBusy} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60">
+                          {resultBusy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                          حفظ النتيجة
+                        </button>
+                        <button type="button" onClick={() => setResultFormOpen(false)} disabled={resultBusy} className="inline-flex min-h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/60 transition-colors hover:text-white disabled:opacity-60">
+                          إلغاء
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {adminTab === 'highlights' ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-400/10 text-brand-300">
+                      <Video className="size-4" />
                     </span>
-                    <span dir="ltr">{formatHighlightSize(highlightFile.file.size)}</span>
-                  </p>
-                ) : null}
-              </div>
-              <label className="grid gap-2 text-xs font-bold text-white/55">
-                وصف المقطع (اختياري)
-                <input
-                  type="text"
-                  maxLength={240}
-                  value={highlightCaption}
-                  onChange={(event) => setHighlightCaption(event.target.value)}
-                  disabled={highlightBusy}
-                  placeholder="مثال: هدف الدقيقة ٣٠"
-                  className="min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
-                />
-              </label>
-              <div className="md:col-span-3 flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={!highlightFile || highlightBusy}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
-                >
-                  {highlightBusy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                  رفع المقطع
-                </button>
-                <p className="text-[11px] leading-5 text-white/35">
-                  الصور حتى 10 ميجابايت، والفيديو حتى 50 ميجابايت (JPG / PNG / WebP / MP4 / WebM / MOV).
-                </p>
-              </div>
-              {highlightError ? (
-                <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">
-                  {highlightError}
-                </p>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-sand-100">أهداف ومقاطع المباراة</h3>
+                      <p className="mt-1 text-[11px] leading-5 text-white/45">ارفع صورة أو فيديو لهدف أو لحظة مميزة؛ سيظهر في صفحة المباراة وصفحة النتيجة.</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleUploadHighlight} className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                    <div className="md:col-span-2">
+                      <input
+                        ref={highlightInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                        onChange={handleHighlightFileChange}
+                        disabled={highlightBusy}
+                        className="hidden"
+                        aria-label="ملف المقطع"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => highlightInputRef.current?.click()}
+                        disabled={highlightBusy}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60"
+                      >
+                        <ImageIcon className="size-4" />
+                        {highlightFile ? 'تغيير الملف' : 'اختر صورة أو فيديو'}
+                      </button>
+                      {highlightFile ? (
+                        <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/50">
+                          <span className="max-w-[180px] truncate font-bold text-sand-100">{highlightFile.file.name}</span>
+                          <span className="rounded-full bg-white/10 px-2 py-0.5">{highlightFile.mediaType === 'video' ? 'فيديو' : 'صورة'}</span>
+                          <span dir="ltr">{formatHighlightSize(highlightFile.file.size)}</span>
+                        </p>
+                      ) : null}
+                    </div>
+                    <label className="grid gap-2 text-xs font-bold text-white/55">
+                      وصف المقطع (اختياري)
+                      <input
+                        type="text"
+                        maxLength={240}
+                        value={highlightCaption}
+                        onChange={(event) => setHighlightCaption(event.target.value)}
+                        disabled={highlightBusy}
+                        placeholder="مثال: هدف الدقيقة ٣٠"
+                        className="min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none placeholder:text-white/25 focus:border-brand-400/50"
+                      />
+                    </label>
+                    <div className="md:col-span-3 flex flex-wrap items-center gap-3">
+                      <button
+                        type="submit"
+                        disabled={!highlightFile || highlightBusy}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                      >
+                        {highlightBusy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        رفع المقطع
+                      </button>
+                      <p className="text-[11px] leading-5 text-white/35">الصور حتى 10 ميجابايت، والفيديو حتى 50 ميجابايت.</p>
+                    </div>
+                    {highlightError ? (
+                      <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">{highlightError}</p>
+                    ) : null}
+                    {highlightSuccess ? (
+                      <p role="status" className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">{highlightSuccess}</p>
+                    ) : null}
+                  </form>
+                </div>
               ) : null}
-              {highlightSuccess ? (
-                <p role="status" className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">
-                  {highlightSuccess}
-                </p>
+
+              {adminTab === 'danger' ? (
+                <div className="rounded-2xl border border-red-400/25 bg-red-400/[0.04] p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="flex items-center gap-2 text-sm font-extrabold text-red-200"><Trash2 className="size-4 text-red-300" /> حذف المباراة</h3>
+                      <p className="mt-1 text-[11px] leading-5 text-white/45">يحذف المباراة مع جميع التسجيلات والفرق والنتيجة والتقييمات. قد تُعاد إضافتها تلقائيًا إن كانت مباراة أسبوعية.</p>
+                      {deleteError ? <p role="alert" className="mt-2 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-bold leading-6 text-red-200">{deleteError}</p> : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteMatch()}
+                      disabled={deleteBusy}
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-red-400/40 bg-red-400/10 px-4 py-2.5 text-xs font-extrabold text-red-200 transition-colors hover:bg-red-400/20 disabled:opacity-60"
+                    >
+                      {deleteBusy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                      حذف نهائيًا
+                    </button>
+                  </div>
+                </div>
               ) : null}
-            </form>
+            </div>
           </Card>
         </section>
       ) : null}
