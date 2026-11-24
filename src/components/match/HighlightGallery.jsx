@@ -1,5 +1,18 @@
-import { useEffect, useState } from 'react'
-import { Image as ImageIcon, Play, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Heart,
+  Image as ImageIcon,
+  Loader2,
+  MessageCircle,
+  Play,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
+import { toArabicError } from '../../lib/errorMessages'
 import Card from '../ui/Card'
 import EmptyState from '../ui/EmptyState'
 
@@ -16,14 +29,125 @@ function formatHighlightDate(value) {
   }).format(date)
 }
 
+function toInteractionError(error, fallback) {
+  const raw = typeof error === 'string' ? error : error?.message ?? ''
+  if (/schema cache|does not exist/i.test(raw)) {
+    return 'التفاعلات غير مهيأة. طبّق تحديث قاعدة البيانات 0038 أولًا.'
+  }
+  return toArabicError(error, fallback)
+}
+
 export default function HighlightGallery({
   highlights = [],
   showEmpty = false,
   onDelete,
   deletingId = null,
 }) {
+  const { profile, isAdmin } = useAuth()
+  const queryClient = useQueryClient()
   const [active, setActive] = useState(null)
   const [failedIds, setFailedIds] = useState([])
+  const [openCommentsId, setOpenCommentsId] = useState(null)
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentBusy, setCommentBusy] = useState(false)
+  const [likingId, setLikingId] = useState(null)
+  const [interactionError, setInteractionError] = useState('')
+
+  const matchId = highlights[0]?.match_id ?? null
+  const highlightIds = useMemo(() => highlights.map((highlight) => highlight.id), [highlights])
+  const canInteract = Boolean(profile && profile.status === 'approved')
+
+  const likesQuery = useQuery({
+    queryKey: ['highlight-likes', matchId],
+    enabled: Boolean(matchId && highlightIds.length),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_highlight_likes')
+        .select('highlight_id,user_id')
+        .eq('match_id', matchId)
+      if (error) {
+        console.debug('match_highlight_likes unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  })
+
+  const commentsQuery = useQuery({
+    queryKey: ['highlight-comments', matchId],
+    enabled: Boolean(matchId && highlightIds.length),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_highlight_comments')
+        .select('id,highlight_id,user_id,body,created_at')
+        .eq('match_id', matchId)
+        .order('created_at', { ascending: true })
+      if (error) {
+        console.debug('match_highlight_comments unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  })
+
+  const authorIds = useMemo(
+    () => [...new Set((commentsQuery.data ?? []).map((comment) => comment.user_id))],
+    [commentsQuery.data],
+  )
+
+  const authorsQuery = useQuery({
+    queryKey: ['highlight-comment-authors', matchId, authorIds.join('|')],
+    enabled: authorIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('player_directory')
+        .select('id,full_name,avatar_url')
+        .in('id', authorIds)
+      if (error) {
+        console.debug('highlight comment authors unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 60_000,
+  })
+
+  const likesByHighlight = useMemo(() => {
+    const counts = new Map()
+    for (const like of likesQuery.data ?? []) {
+      counts.set(like.highlight_id, (counts.get(like.highlight_id) ?? 0) + 1)
+    }
+    return counts
+  }, [likesQuery.data])
+
+  const likedIds = useMemo(
+    () =>
+      new Set(
+        (likesQuery.data ?? [])
+          .filter((like) => like.user_id === profile?.id)
+          .map((like) => like.highlight_id),
+      ),
+    [likesQuery.data, profile?.id],
+  )
+
+  const commentsByHighlight = useMemo(() => {
+    const grouped = new Map()
+    for (const comment of commentsQuery.data ?? []) {
+      const list = grouped.get(comment.highlight_id) ?? []
+      list.push(comment)
+      grouped.set(comment.highlight_id, list)
+    }
+    return grouped
+  }, [commentsQuery.data])
+
+  const authorById = useMemo(
+    () => new Map((authorsQuery.data ?? []).map((player) => [player.id, player])),
+    [authorsQuery.data],
+  )
 
   useEffect(() => {
     if (!active) return undefined
@@ -36,6 +160,61 @@ export default function HighlightGallery({
 
   const markFailed = (id) => {
     setFailedIds((current) => (current.includes(id) ? current : [...current, id]))
+  }
+
+  function toggleComments(highlightId) {
+    setOpenCommentsId((current) => (current === highlightId ? null : highlightId))
+    setCommentDraft('')
+    setInteractionError('')
+  }
+
+  async function handleToggleLike(highlightId) {
+    if (!canInteract || likingId) return
+    setLikingId(highlightId)
+    setInteractionError('')
+
+    const { error } = await supabase.rpc('toggle_match_highlight_like', {
+      p_highlight_id: highlightId,
+    })
+    setLikingId(null)
+
+    if (error) {
+      setInteractionError(toInteractionError(error, 'تعذر تحديث الإعجاب.'))
+      return
+    }
+    await queryClient.invalidateQueries({ queryKey: ['highlight-likes', matchId] })
+  }
+
+  async function handleSubmitComment(event) {
+    event.preventDefault()
+    if (!canInteract || !openCommentsId || !commentDraft.trim()) return
+
+    setCommentBusy(true)
+    setInteractionError('')
+    const { error } = await supabase.rpc('add_match_highlight_comment', {
+      p_highlight_id: openCommentsId,
+      p_body: commentDraft.trim(),
+    })
+    setCommentBusy(false)
+
+    if (error) {
+      setInteractionError(toInteractionError(error, 'تعذر إضافة التعليق.'))
+      return
+    }
+    setCommentDraft('')
+    await queryClient.invalidateQueries({ queryKey: ['highlight-comments', matchId] })
+  }
+
+  async function handleDeleteComment(comment) {
+    setInteractionError('')
+    const { error } = await supabase.rpc('delete_match_highlight_comment', {
+      p_comment_id: comment.id,
+    })
+    if (error) {
+      setInteractionError(toInteractionError(error, 'تعذر حذف التعليق.'))
+      return
+    }
+    await queryClient.invalidateQueries({ queryKey: ['highlight-comments', matchId] })
   }
 
   if (!highlights.length) {
@@ -55,6 +234,10 @@ export default function HighlightGallery({
           const isVideo = highlight.media_type === 'video'
           const isBroken = failedIds.includes(highlight.id)
           const dateLabel = formatHighlightDate(highlight.created_at)
+          const comments = commentsByHighlight.get(highlight.id) ?? []
+          const likeCount = likesByHighlight.get(highlight.id) ?? 0
+          const isLiked = likedIds.has(highlight.id)
+          const commentsOpen = openCommentsId === highlight.id
           return (
             <Card key={highlight.id} className="overflow-hidden">
               <button
@@ -115,10 +298,112 @@ export default function HighlightGallery({
                   </button>
                 ) : null}
               </div>
+
+              <div className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => void handleToggleLike(highlight.id)}
+                  disabled={!canInteract || likingId === highlight.id}
+                  aria-pressed={isLiked}
+                  aria-label={isLiked ? 'إلغاء الإعجاب' : 'إعجاب'}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${isLiked ? 'bg-red-400/15 text-red-200' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+                >
+                  {likingId === highlight.id ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Heart className={`size-3.5 ${isLiked ? 'fill-current' : ''}`} />
+                  )}
+                  {likeCount}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleComments(highlight.id)}
+                  aria-expanded={commentsOpen}
+                  aria-label="التعليقات"
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-bold transition-colors ${commentsOpen ? 'bg-brand-400/15 text-brand-200' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+                >
+                  <MessageCircle className="size-3.5" />
+                  {comments.length}
+                </button>
+              </div>
+
+              {commentsOpen ? (
+                <div className="border-t border-white/10 bg-pitch-950/30 p-3">
+                  {comments.length ? (
+                    <div className="space-y-2">
+                      {comments.map((comment) => {
+                        const author = authorById.get(comment.user_id)
+                        return (
+                          <div key={comment.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-400/10 text-[10px] font-black text-brand-300">
+                                  {author?.full_name?.trim()?.charAt(0) ?? '؟'}
+                                </span>
+                                <span className="truncate text-[11px] font-extrabold text-sand-100">
+                                  {author?.full_name ?? 'لاعب'}
+                                </span>
+                                <span className="shrink-0 text-[10px] text-white/35" dir="ltr">
+                                  {formatHighlightDate(comment.created_at)}
+                                </span>
+                              </div>
+                              {canInteract && (comment.user_id === profile?.id || isAdmin) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteComment(comment)}
+                                  className="grid size-8 shrink-0 place-items-center rounded-lg text-white/35 transition-colors hover:text-red-300"
+                                  aria-label="حذف التعليق"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              ) : null}
+                            </div>
+                            <p className="mt-1.5 whitespace-pre-wrap break-words text-[11px] leading-5 text-white/70">
+                              {comment.body}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="py-2 text-center text-[11px] text-white/40">لا توجد تعليقات بعد. كن أول من يعلّق.</p>
+                  )}
+
+                  {canInteract ? (
+                    <form onSubmit={handleSubmitComment} className="mt-3 flex items-end gap-2">
+                      <input
+                        type="text"
+                        value={commentDraft}
+                        onChange={(event) => setCommentDraft(event.target.value)}
+                        maxLength={500}
+                        placeholder="اكتب تعليقًا…"
+                        aria-label="تعليق جديد"
+                        className="min-h-10 w-full rounded-xl border border-white/10 bg-pitch-950/60 px-3 py-2 text-xs font-semibold text-sand-100 outline-none placeholder:text-white/25 focus:border-brand-400/50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={commentBusy || !commentDraft.trim()}
+                        className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-400 text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-50"
+                        aria-label="إرسال التعليق"
+                      >
+                        {commentBusy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="mt-2 text-center text-[10px] text-white/35">التعليق متاح للاعبين الموافق عليهم فقط.</p>
+                  )}
+                </div>
+              ) : null}
             </Card>
           )
         })}
       </div>
+
+      {interactionError ? (
+        <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-xs leading-6 text-red-200">
+          {interactionError}
+        </p>
+      ) : null}
 
       {active ? (
         <div

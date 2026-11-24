@@ -20,6 +20,8 @@ const ERROR_MESSAGES = [
     'تعذر تسجيل المقطع. أعد رفعه من صفحة المباراة.',
   ],
   [/HIGHLIGHT_NOT_FOUND/, 'تم حذف هذا المقطع بالفعل.'],
+  [/INVALID_HIGHLIGHT_COMMENT/, 'اكتب تعليقًا من حرف واحد على الأقل.'],
+  [/HIGHLIGHT_COMMENT_NOT_FOUND/, 'تم حذف هذا التعليق بالفعل.'],
   [/HIGHLIGHTS_MATCH_CLOSED/, 'لا يمكن إضافة مقاطع لمباراة أُلغيت.'],
   [/INVALID_EXTERNAL_PLAYER_NAME/, 'أدخل اسم اللاعب الخارجي (حرفان على الأقل).'],
   [/INVALID_IMAGE_TYPE/, 'اختر صورة بصيغة JPG أو PNG أو Webp أو HEIC أو HEIF.'],

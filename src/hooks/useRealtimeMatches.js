@@ -52,6 +52,8 @@ export function useMatchRealtime(matchId) {
       void queryClient.invalidateQueries({ queryKey: ['match-result', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['match-scorers', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['match-highlights', matchId] })
+      void queryClient.invalidateQueries({ queryKey: ['highlight-likes', matchId] })
+      void queryClient.invalidateQueries({ queryKey: ['highlight-comments', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['my-match-ratings', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['match-rating-stats', matchId] })
       void queryClient.invalidateQueries({ queryKey: ['my-registration'] })
@@ -92,6 +94,16 @@ export function useMatchRealtime(matchId) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'match_highlights', filter: `match_id=eq.${matchId}` },
+        invalidateMatch,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_highlight_likes', filter: `match_id=eq.${matchId}` },
+        invalidateMatch,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_highlight_comments', filter: `match_id=eq.${matchId}` },
         invalidateMatch,
       )
       .on(
