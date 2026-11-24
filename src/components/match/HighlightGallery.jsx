@@ -37,6 +37,31 @@ function toInteractionError(error, fallback) {
   return toArabicError(error, fallback)
 }
 
+// Browsers show a black box for a <video> that has only loaded metadata.
+// This branded poster is visible until a real frame is decoded.
+const VIDEO_POSTER =
+  'data:image/svg+xml;charset=utf-8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#0a2117"/>
+          <stop offset="1" stop-color="#04100b"/>
+        </linearGradient>
+      </defs>
+      <rect width="640" height="360" fill="url(#g)"/>
+      <circle cx="320" cy="180" r="46" fill="#d2ff4d" opacity="0.18"/>
+      <circle cx="320" cy="180" r="34" fill="#d2ff4d"/>
+      <path d="M310 166 L310 194 L334 180 Z" fill="#04100b"/>
+    </svg>`,
+  )
+
+// The #t fragment asks the browser to seek to the first real frame on load.
+function videoPreviewUrl(url) {
+  if (!url) return ''
+  return url.includes('#') ? url : `${url}#t=0.1`
+}
+
 export default function HighlightGallery({
   highlights = [],
   showEmpty = false,
@@ -252,11 +277,22 @@ export default function HighlightGallery({
                   </span>
                 ) : isVideo ? (
                   <video
-                    src={highlight.media_url}
+                    src={videoPreviewUrl(highlight.media_url)}
+                    poster={VIDEO_POSTER}
                     muted
                     playsInline
                     preload="metadata"
                     className="size-full object-cover"
+                    onLoadedMetadata={(event) => {
+                      const video = event.currentTarget
+                      if (Number.isFinite(video.duration) && video.duration > 0.2) {
+                        try {
+                          video.currentTime = 0.1
+                        } catch {
+                          // The #t fragment already handles most browsers.
+                        }
+                      }
+                    }}
                     onError={() => markFailed(highlight.id)}
                   />
                 ) : (
