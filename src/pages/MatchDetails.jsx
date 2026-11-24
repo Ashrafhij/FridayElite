@@ -10,6 +10,7 @@ import {
   Copy,
   Footprints,
   History,
+  Image as ImageIcon,
   Link2,
   Loader2,
   Lock,
@@ -26,11 +27,14 @@ import {
   Users,
   UserCheck,
   UserPlus,
+  Upload,
   UserRound,
+  Video,
   Vote,
   Volleyball,
   XCircle,
 } from 'lucide-react'
+import HighlightGallery from '../components/match/HighlightGallery'
 import PageHeader from '../components/layout/PageHeader'
 import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
@@ -39,6 +43,7 @@ import { useAuth } from '../context/AuthContext'
 import { useMatchRealtime } from '../hooks/useRealtimeMatches'
 import { supabase } from '../lib/supabase'
 import { toArabicError } from '../lib/errorMessages'
+import { formatHighlightSize, prepareHighlight, toHighlightError } from '../lib/highlights'
 
 const MATCH_COLUMNS =
   'id,kickoff_at,registration_open_at,registration_close_at,local_date,venue,address,notes,capacity,team_size,formation,status,registration_locked,teams_generated_at,teams_seed,teams_stale'
@@ -349,6 +354,7 @@ export default function MatchDetails() {
   const queryClient = useQueryClient()
   const pitchRef = useRef(null)
   const registerRef = useRef(null)
+  const highlightInputRef = useRef(null)
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
   const [generateSuccess, setGenerateSuccess] = useState('')
@@ -422,6 +428,13 @@ export default function MatchDetails() {
   const [addPlayerBusy, setAddPlayerBusy] = useState(false)
   const [addPlayerError, setAddPlayerError] = useState('')
   const [addPlayerSuccess, setAddPlayerSuccess] = useState('')
+  const [highlightFile, setHighlightFile] = useState(null)
+  const [highlightCaption, setHighlightCaption] = useState('')
+  const [highlightBusy, setHighlightBusy] = useState(false)
+  const [highlightError, setHighlightError] = useState('')
+  const [highlightSuccess, setHighlightSuccess] = useState('')
+  const [highlightDeleteError, setHighlightDeleteError] = useState('')
+  const [deletingHighlightId, setDeletingHighlightId] = useState(null)
 
   useMatchRealtime(matchId)
 
@@ -562,6 +575,26 @@ export default function MatchDetails() {
     refetchInterval: 30_000,
   })
 
+  // Migration 0037 adds this table; before it runs the section stays empty.
+  const highlightsQuery = useQuery({
+    queryKey: ['match-highlights', matchId],
+    enabled: Boolean(matchQuery.data),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('match_highlights')
+        .select('id,match_id,media_url,media_type,caption,storage_path,created_at')
+        .eq('match_id', matchId)
+        .order('created_at', { ascending: false })
+      if (error) {
+        console.debug('match_highlights unavailable', error)
+        return []
+      }
+      return data ?? []
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
   const myRatingsQuery = useQuery({
     queryKey: ['my-match-ratings', matchId, profile?.id],
     enabled: Boolean(matchQuery.data && profile?.id),
@@ -618,6 +651,7 @@ export default function MatchDetails() {
 
   const registrations = registrationsQuery.data ?? []
   const assignments = assignmentsQuery.data ?? []
+  const highlights = highlightsQuery.data ?? []
 
   const playerIds = useMemo(
     () => [...new Set([...registrations.map((item) => item.player_id), ...assignments.map((item) => item.player_id)])],
@@ -1568,6 +1602,97 @@ export default function MatchDetails() {
     ])
   }
 
+  function handleHighlightFileChange(event) {
+    const file = event.target.files?.[0] ?? null
+    setHighlightError('')
+    setHighlightSuccess('')
+    if (!file) {
+      setHighlightFile(null)
+      return
+    }
+    try {
+      setHighlightFile(prepareHighlight(file))
+    } catch (error) {
+      setHighlightFile(null)
+      setHighlightError(toHighlightError(error))
+      event.target.value = ''
+    }
+  }
+
+  async function handleUploadHighlight(event) {
+    event.preventDefault()
+    if (!match || !highlightFile) return
+
+    setHighlightBusy(true)
+    setHighlightError('')
+    setHighlightSuccess('')
+
+    const uploadPath = `${match.id}/${highlightFile.fileName}`
+    let uploaded = false
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('match-highlights')
+        .upload(uploadPath, highlightFile.file, {
+          contentType: highlightFile.contentType,
+          cacheControl: '3600',
+          upsert: false,
+        })
+      if (uploadError) throw uploadError
+      uploaded = true
+
+      const { data: publicData } = supabase.storage
+        .from('match-highlights')
+        .getPublicUrl(uploadPath)
+      if (!publicData?.publicUrl) throw new Error('INVALID_HIGHLIGHT_URL')
+
+      const { error } = await supabase.rpc('admin_add_match_highlight', {
+        p_match_id: match.id,
+        p_storage_path: uploadPath,
+        p_media_url: publicData.publicUrl,
+        p_media_type: highlightFile.mediaType,
+        p_caption: highlightCaption.trim() || null,
+      })
+      if (error) throw error
+
+      setHighlightFile(null)
+      setHighlightCaption('')
+      if (highlightInputRef.current) highlightInputRef.current.value = ''
+      setHighlightSuccess('تمت إضافة المقطع إلى المباراة.')
+      await queryClient.invalidateQueries({ queryKey: ['match-highlights', matchId] })
+    } catch (error) {
+      // Never leave an unregistered file behind if the RPC rejection wins.
+      if (uploaded) {
+        await supabase.storage.from('match-highlights').remove([uploadPath])
+      }
+      setHighlightError(toHighlightError(error))
+    } finally {
+      setHighlightBusy(false)
+    }
+  }
+
+  async function handleDeleteHighlight(highlight) {
+    if (!window.confirm('سيتم حذف هذا المقطع نهائيًا. متابعة؟')) return
+    setDeletingHighlightId(highlight.id)
+    setHighlightDeleteError('')
+    setHighlightSuccess('')
+
+    try {
+      const { data: storagePath, error } = await supabase.rpc('admin_delete_match_highlight', {
+        p_highlight_id: highlight.id,
+      })
+      if (error) throw error
+      if (storagePath) {
+        await supabase.storage.from('match-highlights').remove([storagePath])
+      }
+      setHighlightSuccess('تم حذف المقطع.')
+      await queryClient.invalidateQueries({ queryKey: ['match-highlights', matchId] })
+    } catch (error) {
+      setHighlightDeleteError(toHighlightError(error))
+    } finally {
+      setDeletingHighlightId(null)
+    }
+  }
+
   async function handleRatePlayer(ratedPlayerId, rating) {
     if (!match || !profile || ratedPlayerId === profile.id) return
     setRatingBusyPlayerId(ratedPlayerId)
@@ -2193,6 +2318,92 @@ export default function MatchDetails() {
         </section>
       ) : null}
 
+      {/* Highlight uploads (admin only) */}
+      {isAdmin ? (
+        <section className="mt-8" aria-label="رفع مقاطع المباراة">
+          <Card className="border-brand-400/20 p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
+                <Video className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-extrabold text-sand-100">أهداف ومقاطع المباراة</h3>
+                <p className="mt-1 text-xs leading-6 text-white/50">
+                  ارفع صورة أو فيديو لهدف أو لحظة مميزة؛ سيظهر في صفحة المباراة وصفحة النتيجة للاعبين.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleUploadHighlight} className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <div className="md:col-span-2">
+                <input
+                  ref={highlightInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                  onChange={handleHighlightFileChange}
+                  disabled={highlightBusy}
+                  className="hidden"
+                  aria-label="ملف المقطع"
+                />
+                <button
+                  type="button"
+                  onClick={() => highlightInputRef.current?.click()}
+                  disabled={highlightBusy}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/70 transition-colors hover:text-white disabled:opacity-60"
+                >
+                  <ImageIcon className="size-4" />
+                  {highlightFile ? 'تغيير الملف' : 'اختر صورة أو فيديو'}
+                </button>
+                {highlightFile ? (
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/50">
+                    <span className="truncate font-bold text-sand-100">{highlightFile.file.name}</span>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5">
+                      {highlightFile.mediaType === 'video' ? 'فيديو' : 'صورة'}
+                    </span>
+                    <span dir="ltr">{formatHighlightSize(highlightFile.file.size)}</span>
+                  </p>
+                ) : null}
+              </div>
+              <label className="grid gap-2 text-xs font-bold text-white/55">
+                وصف المقطع (اختياري)
+                <input
+                  type="text"
+                  maxLength={240}
+                  value={highlightCaption}
+                  onChange={(event) => setHighlightCaption(event.target.value)}
+                  disabled={highlightBusy}
+                  placeholder="مثال: هدف الدقيقة ٣٠"
+                  className="min-h-11 w-full rounded-2xl border border-white/10 bg-pitch-950/60 px-4 py-3 text-sm font-semibold text-sand-100 outline-none transition-colors placeholder:text-white/25 focus:border-brand-400/50"
+                />
+              </label>
+              <div className="md:col-span-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={!highlightFile || highlightBusy}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-400 px-4 py-2.5 text-xs font-extrabold text-pitch-950 transition-colors hover:bg-brand-300 disabled:opacity-60"
+                >
+                  {highlightBusy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                  رفع المقطع
+                </button>
+                <p className="text-[11px] leading-5 text-white/35">
+                  الصور حتى 10 ميجابايت، والفيديو حتى 50 ميجابايت (JPG / PNG / WebP / MP4 / WebM / MOV).
+                </p>
+              </div>
+              {highlightError ? (
+                <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-[12px] leading-6 text-red-200 md:col-span-3">
+                  {highlightError}
+                </p>
+              ) : null}
+              {highlightSuccess ? (
+                <p role="status" className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-4 py-3 text-[12px] leading-6 text-brand-200 md:col-span-3">
+                  {highlightSuccess}
+                </p>
+              ) : null}
+            </form>
+          </Card>
+        </section>
+      ) : null}
+
       <section ref={pitchRef} className="mt-8 scroll-mt-24" aria-label="الميدان">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -2617,6 +2828,32 @@ export default function MatchDetails() {
           </div>
         </div>
       </section>
+
+      {isAdmin || highlights.length ? (
+        <section className="mt-8" aria-label="مقاطع المباراة">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
+                <Video className="size-5 text-brand-300" />
+                مقاطع المباراة
+              </h2>
+              <p className="mt-1 text-sm text-white/45">أهداف ولحظات مميزة أضافتها الإدارة لهذه المباراة.</p>
+            </div>
+            <Badge variant={highlights.length ? 'brand' : 'neutral'}>{highlights.length} مقطع</Badge>
+          </div>
+          <HighlightGallery
+            highlights={highlights}
+            showEmpty={isAdmin}
+            onDelete={isAdmin ? handleDeleteHighlight : undefined}
+            deletingId={deletingHighlightId}
+          />
+          {highlightDeleteError ? (
+            <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-xs leading-6 text-red-200">
+              {highlightDeleteError}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {isAdmin && ratingVotes.length ? (
         <section className="mt-8" aria-label="أصوات التقييم">

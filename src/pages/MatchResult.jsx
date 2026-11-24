@@ -1,7 +1,8 @@
 import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CalendarDays, Check, Copy, Footprints, MapPin, Star, Trophy, Volleyball } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Check, Copy, Footprints, MapPin, Star, Trophy, Video, Volleyball } from 'lucide-react'
+import HighlightGallery from '../components/match/HighlightGallery'
 import PageHeader from '../components/layout/PageHeader'
 import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
@@ -140,6 +141,27 @@ export default function MatchResult() {
     refetchInterval: 30_000,
   })
 
+  const highlightsQuery = useQuery({
+    queryKey: ['result-page-highlights', matchId],
+    enabled: Boolean(matchId),
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from('match_highlights')
+          .select('id,match_id,media_url,media_type,caption,created_at')
+          .eq('match_id', matchId)
+          .order('created_at', { ascending: false })
+        if (error) throw error
+        return data ?? []
+      } catch {
+        // Migration 0037 not applied yet — the rest of the result still works.
+        return []
+      }
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
   const notablePlayerIds = [
     ...new Set([
       ...(scorersQuery.data ?? []).map((scorer) => scorer.player_id),
@@ -166,6 +188,7 @@ export default function MatchResult() {
   const teams = teamsQuery.data ?? []
   const scorers = scorersQuery.data ?? []
   const ratingStats = ratingStatsQuery.data ?? []
+  const highlights = highlightsQuery.data ?? []
   const directoryById = new Map((directoryQuery.data ?? []).map((player) => [player.id, player]))
 
   function getResultLink() {
@@ -380,6 +403,22 @@ export default function MatchResult() {
               </p>
             </div>
           </section>
+
+          {highlights.length ? (
+            <section className="mt-8" aria-label="مقاطع المباراة">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-extrabold text-sand-100">
+                    <Video className="size-5 text-brand-300" />
+                    أهداف ومقاطع المباراة
+                  </h2>
+                  <p className="mt-1 text-sm text-white/45">لحظات من المباراة اختارتها الإدارة لتشاركها مع الفريق.</p>
+                </div>
+                <Badge variant="brand">{highlights.length} مقطع</Badge>
+              </div>
+              <HighlightGallery highlights={highlights} />
+            </section>
+          ) : null}
 
           {ratingStats.length ? (
             <Card className="mt-6 flex flex-col items-center gap-4 border-brand-400/25 bg-brand-400/[0.05] p-5 text-center sm:flex-row sm:text-start">

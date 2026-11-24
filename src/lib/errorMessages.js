@@ -9,6 +9,18 @@ const ERROR_MESSAGES = [
   [/INVALID_INPUT|METHOD_NOT_ALLOWED/, 'تعذر إكمال العملية. حاول مرة أخرى.'],
   [/SERVER_ERROR/, 'تعذر إكمال العملية. حاول مرة أخرى.'],
   [/INVALID_AVATAR/, 'رابط الصورة غير صالح. أعد رفع الصورة الشخصية.'],
+  [/HIGHLIGHT_REQUIRED/, 'اختر صورة أو فيديو لإضافته إلى المباراة.'],
+  [
+    /INVALID_HIGHLIGHT_TYPE/,
+    'اختر صورة JPG أو PNG أو WebP، أو فيديو MP4 أو WebM أو MOV.',
+  ],
+  [/HIGHLIGHT_TOO_LARGE/, 'حجم المقطع كبير. الحد الأقصى 50 ميجابايت للفيديو و10 للصورة.'],
+  [
+    /INVALID_HIGHLIGHT_PATH|INVALID_HIGHLIGHT_URL/,
+    'تعذر تسجيل المقطع. أعد رفعه من صفحة المباراة.',
+  ],
+  [/HIGHLIGHT_NOT_FOUND/, 'تم حذف هذا المقطع بالفعل.'],
+  [/HIGHLIGHTS_MATCH_CLOSED/, 'لا يمكن إضافة مقاطع لمباراة أُلغيت.'],
   [/INVALID_EXTERNAL_PLAYER_NAME/, 'أدخل اسم اللاعب الخارجي (حرفان على الأقل).'],
   [/INVALID_IMAGE_TYPE/, 'اختر صورة بصيغة JPG أو PNG أو Webp أو HEIC أو HEIF.'],
   [
